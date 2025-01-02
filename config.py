@@ -493,5 +493,26 @@ def get_config():
         default=None,
         help="by default None. set the path to pretrained model.",
     )
+    
+    # attention_net parameters
+    parser.add_argument(
+        "--input_dim",
+        type=int,
+        default=4,
+        help="input dimension of attention net",
+    )
+    parser.add_argument(
+        "--embedding_dim",
+        type=int,
+        default=128,
+        help="embedding dimension of attention net",
+    )
+    
+    parser.add_argument(
+        "--agent_num",
+        type=int,
+        default=3,
+        help="number of agents",
+    )
 
     return parser

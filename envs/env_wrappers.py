@@ -37,10 +37,10 @@ class DummyVecEnv():
         for (i, done) in enumerate(dones):
             if 'bool' in done.__class__.__name__:
                 if done:
-                    obs[i] = self.envs[i].reset()
+                    obs[i] = self.envs[i].reset()[2]
             else:
                 if np.all(done):
-                    obs[i] = self.envs[i].reset()
+                    obs[i] = self.envs[i].reset()[2]
 
         self.actions = None
         return obs, rews, dones, infos

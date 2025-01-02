@@ -65,22 +65,34 @@ class Runner(object):
             if not os.path.exists(self.save_dir):
                 os.makedirs(self.save_dir)
 
-        from algorithms.algorithm.r_mappo import RMAPPO as TrainAlgo
-        from algorithms.algorithm.rMAPPOPolicy import RMAPPOPolicy as Policy
+        # from algorithms.algorithm.r_mappo import RMAPPO as TrainAlgo
+        # from algorithms.algorithm.rMAPPOPolicy import RMAPPOPolicy as Policy
+        from algorithms.algorithm.r_mappo_attention_net import (
+            RMAPPO_AttentionNet as TrainAlgo,
+        )
+        from algorithms.algorithm.rMAPPOPolicy_attention_net import (
+            RMAPPOPolicy_AttentionNet as Policy,
+        )
 
         self.policy = []
         for agent_id in range(self.num_agents):
-            share_observation_space = (
-                self.envs.share_observation_space[agent_id]
+            # share_observation_space = (
+            #     self.envs.share_observation_space[agent_id]["shape"]
+            #     if self.use_centralized_V
+            #     else self.all_args.input_dim
+            # )
+            joint_input_dim = (
+                self.all_args.input_dim * self.all_args.agent_num
                 if self.use_centralized_V
-                else self.envs.observation_space[agent_id]
+                else self.all_args.input_dim
             )
             # policy network
             po = Policy(
                 self.all_args,
-                self.envs.observation_space[agent_id],
-                share_observation_space,
-                self.envs.action_space[agent_id],
+                # joint_input_dim,
+                # self.envs.observation_space[agent_id],
+                joint_input_dim,  # share_observation_space,
+                # self.envs.action_space[agent_id],
                 device=self.device,
             )
             self.policy.append(po)
@@ -94,15 +106,26 @@ class Runner(object):
             # algorithm
             tr = TrainAlgo(self.all_args, self.policy[agent_id], device=self.device)
             # buffer
-            share_observation_space = (
-                self.envs.share_observation_space[agent_id]
+            # share_observation_space = (
+            #     self.envs.share_observation_space[agent_id]["shape"]
+            #     if self.use_centralized_V
+            #     else self.envs.observation_space[agent_id]["shape"]
+            # )
+            joint_input_dim = (
+                self.all_args.input_dim * self.all_args.agent_num
                 if self.use_centralized_V
-                else self.envs.observation_space[agent_id]
+                else self.all_args.input_dim
             )
+            # bu = SeparatedReplayBuffer(
+            #     self.all_args,
+            #     self.envs.observation_space[agent_id]["shape"],
+            #     share_observation_space,
+            #     self.envs.action_space[agent_id],
+            # )
             bu = SeparatedReplayBuffer(
                 self.all_args,
-                self.envs.observation_space[agent_id],
-                share_observation_space,
+                self.all_args.input_dim,
+                joint_input_dim,
                 self.envs.action_space[agent_id],
             )
             self.buffer.append(bu)
@@ -130,7 +153,9 @@ class Runner(object):
                 self.buffer[agent_id].masks[-1],
             )
             next_value = _t2n(next_value)
-            self.buffer[agent_id].compute_returns(next_value, self.trainer[agent_id].value_normalizer)
+            self.buffer[agent_id].compute_returns(
+                next_value, self.trainer[agent_id].value_normalizer
+            )
 
     def train(self):
         train_infos = []
@@ -157,7 +182,9 @@ class Runner(object):
 
     def restore(self):
         for agent_id in range(self.num_agents):
-            policy_actor_state_dict = torch.load(str(self.model_dir) + "/actor_agent" + str(agent_id) + ".pt")
+            policy_actor_state_dict = torch.load(
+                str(self.model_dir) + "/actor_agent" + str(agent_id) + ".pt"
+            )
             self.policy[agent_id].actor.load_state_dict(policy_actor_state_dict)
             policy_critic_state_dict = torch.load(
                 str(self.model_dir) + "/critic_agent" + str(agent_id) + ".pt"

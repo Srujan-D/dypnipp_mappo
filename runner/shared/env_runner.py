@@ -110,7 +110,7 @@ class EnvRunner(Runner):
 
     def warmup(self):
         # reset env
-        obs = self.envs.reset()  # shape = [env_num, agent_num, obs_dim]
+        obs = self.envs.reset()[2]  # shape = [env_num, agent_num, obs_dim]
 
         # replay buffer
         if self.use_centralized_V:
@@ -223,7 +223,7 @@ class EnvRunner(Runner):
     @torch.no_grad()
     def eval(self, total_num_steps):
         eval_episode_rewards = []
-        eval_obs = self.eval_envs.reset()
+        eval_obs = self.eval_envs.reset()[2]
 
         eval_rnn_states = np.zeros(
             (self.n_eval_rollout_threads, *self.buffer.rnn_states.shape[2:]),
@@ -281,7 +281,7 @@ class EnvRunner(Runner):
 
         all_frames = []
         for episode in range(self.all_args.render_episodes):
-            obs = envs.reset()
+            obs = envs.reset()[2]
             if self.all_args.save_gifs:
                 image = envs.render("rgb_array")[0][0]
                 all_frames.append(image)
