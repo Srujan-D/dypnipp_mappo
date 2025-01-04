@@ -19,7 +19,7 @@ class Runner(object):
         self.envs = config["envs"]
         self.eval_envs = config["eval_envs"]
         self.device = config["device"]
-        self.num_agents = config["num_agents"]
+        self.num_agents = config["agent_num"]
 
         # parameters
         self.env_name = self.all_args.env_name
@@ -76,22 +76,24 @@ class Runner(object):
 
         self.policy = []
         for agent_id in range(self.num_agents):
-            # share_observation_space = (
-            #     self.envs.share_observation_space[agent_id]["shape"]
-            #     if self.use_centralized_V
-            #     else self.all_args.input_dim
-            # )
-            joint_input_dim = (
-                self.all_args.input_dim * self.all_args.agent_num
+            share_observation_space = (
+                self.envs.share_observation_space[agent_id]["shape"]
                 if self.use_centralized_V
                 else self.all_args.input_dim
             )
+            print("agent id: ", agent_id, " share_observation_space: ", share_observation_space)
+            # joint_input_dim = (
+            #     self.all_args.input_dim * self.all_args.agent_num
+            #     if self.use_centralized_V
+            #     else self.all_args.input_dim
+            # )
             # policy network
             po = Policy(
                 self.all_args,
                 # joint_input_dim,
                 # self.envs.observation_space[agent_id],
-                joint_input_dim,  # share_observation_space,
+                # joint_input_dim,
+                share_observation_space,
                 # self.envs.action_space[agent_id],
                 device=self.device,
             )
@@ -106,28 +108,28 @@ class Runner(object):
             # algorithm
             tr = TrainAlgo(self.all_args, self.policy[agent_id], device=self.device)
             # buffer
-            # share_observation_space = (
-            #     self.envs.share_observation_space[agent_id]["shape"]
-            #     if self.use_centralized_V
-            #     else self.envs.observation_space[agent_id]["shape"]
-            # )
-            joint_input_dim = (
-                self.all_args.input_dim * self.all_args.agent_num
+            share_observation_space = (
+                self.envs.share_observation_space[agent_id]["shape"]
                 if self.use_centralized_V
-                else self.all_args.input_dim
+                else self.envs.observation_space[agent_id]["shape"]
             )
-            # bu = SeparatedReplayBuffer(
-            #     self.all_args,
-            #     self.envs.observation_space[agent_id]["shape"],
-            #     share_observation_space,
-            #     self.envs.action_space[agent_id],
-            # )
             bu = SeparatedReplayBuffer(
                 self.all_args,
-                self.all_args.input_dim,
-                joint_input_dim,
+                self.envs.observation_space[agent_id]["shape"],
+                share_observation_space,
                 self.envs.action_space[agent_id],
             )
+            # joint_input_dim = (
+            #     self.all_args.input_dim * self.all_args.agent_num
+            #     if self.use_centralized_V
+            #     else self.all_args.input_dim
+            # )
+            # bu = SeparatedReplayBuffer(
+            #     self.all_args,
+            #     self.all_args.input_dim,
+            #     joint_input_dim,
+            #     self.envs.action_space[agent_id],
+            # )
             self.buffer.append(bu)
             self.trainer.append(tr)
 

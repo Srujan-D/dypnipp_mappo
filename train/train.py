@@ -69,7 +69,8 @@ def make_eval_env(all_args):
 def parse_args(args, parser):
     parser.add_argument("--scenario_name", type=str, default="MyEnv", help="Which scenario to run on")
     parser.add_argument("--num_landmarks", type=int, default=3)
-    parser.add_argument("--num_agents", type=int, default=2, help="number of players")
+    # parser.add_argument("--agent_num", type=int, default=3)
+    # parser.add_argument("--num_agents", type=int, default=2, help="number of players")
 
     all_args = parser.parse_known_args(args)[0]
 
@@ -151,19 +152,21 @@ def main(args):
     # env init
     envs = make_train_env(all_args)
     eval_envs = make_eval_env(all_args) if all_args.use_eval else None
-    num_agents = all_args.num_agents
+    agent_num = all_args.agent_num
 
     config = {
         "all_args": all_args,
         "envs": envs,
         "eval_envs": eval_envs,
-        "num_agents": num_agents,
+        # "num_agents": num_agents,
+        "agent_num": agent_num,
         "device": device,
         "run_dir": run_dir,
     }
 
     # run experiments
     if all_args.share_policy:
+        print("use shared policy...")
         from runner.shared.env_runner import EnvRunner as Runner
     else:
         from runner.separated.fire_env_runner import EnvRunner as Runner

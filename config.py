@@ -182,7 +182,7 @@ def get_config():
     parser.add_argument(
         "--n_training_threads",
         type=int,
-        default=2,
+        default=1,
         help="Number of torch threads for training",
     )
     parser.add_argument(

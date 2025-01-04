@@ -325,8 +325,10 @@ class GaussianProcessWrapper:
             return process_node(gp)
         else:
             all_node_features = []
+            # print('self.GPs is ', len(self.GPs))
             for gp in self.GPs:
                 node_feature = process_node(gp)
+                # print(">> node_feature is ", node_feature.shape)
                 all_node_features.append(node_feature)
             return all_node_features
             

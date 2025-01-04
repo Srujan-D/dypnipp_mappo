@@ -6,6 +6,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.cuda.amp.autocast_mode import autocast
 from .params_robust_attention_net import *
 import os
+import traceback
 
 class SingleHeadAttention(nn.Module):
     def __init__(self, embedding_dim):
@@ -257,13 +258,25 @@ class Decoder(nn.Module):
 class AttentionNet(nn.Module):
     def __init__(self, input_dim, embedding_dim, device="cuda"):
         super(AttentionNet, self).__init__()
-        breakpoint()
-        self.initial_embedding = nn.Linear(
-            input_dim, embedding_dim
-        )  # layer for non-end position
-        self.end_embedding = nn.Linear(
-            input_dim, embedding_dim
-        )  # embedding layer for end position
+        # print("input_dim", input_dim)
+        # print("embedding_dim", embedding_dim)
+        # traceback.print_stack()
+        # print("-"*10)
+        try:
+            self.initial_embedding = nn.Linear(
+                input_dim, embedding_dim
+            )  # layer for non-end position
+            self.end_embedding = nn.Linear(
+                input_dim, embedding_dim
+            )  # embedding layer for end position
+        except:
+            breakpoint()
+            self.initial_embedding = nn.Linear(
+                input_dim, embedding_dim
+            )  # layer for non-end position
+            self.end_embedding = nn.Linear(
+                input_dim, embedding_dim
+            )  # embedding layer for end position
         self.budget_embedding = nn.Linear(embedding_dim + 2, embedding_dim)
         self.value_output = nn.Linear(embedding_dim, 1)
         self.pos_embedding = nn.Linear(32, embedding_dim)

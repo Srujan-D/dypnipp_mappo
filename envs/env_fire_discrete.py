@@ -34,11 +34,11 @@ class DiscreteActionEnv:
 
         # Define observation and action spaces as simple dictionaries
         self.observation_space = [
-            {"shape": (self.signal_obs_dim, 1), "dtype": np.float32}
+            {"shape": (self.signal_obs_dim, 4), "dtype": np.float32}
             for _ in range(self.num_agents)
         ]
         self.share_observation_space = [
-            {"shape": (self.num_agents * self.signal_obs_dim, 1), "dtype": np.float32}
+            {"shape": (self.num_agents * self.signal_obs_dim, 4), "dtype": np.float32}
             for _ in range(self.num_agents)
         ]
         self.action_space = [
@@ -71,6 +71,8 @@ class DiscreteActionEnv:
         :return: Initial observations for all agents.
         """
         obs = self.env.reset()[2]
+        # breakpoint()
+        # print("obs------------------------", len(obs), np.stack(obs).shape)
         return np.stack(obs)
 
     def close(self):
