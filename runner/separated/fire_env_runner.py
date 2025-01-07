@@ -33,7 +33,7 @@ class EnvRunner(Runner):
                     values,
                     actions,
                     action_log_probs,
-                    rnn_states,
+                    rnn_states_actor,
                     rnn_states_critic,
                     actions_env,
                 ) = self.collect(step)
@@ -50,7 +50,7 @@ class EnvRunner(Runner):
                     values,
                     actions,
                     action_log_probs,
-                    rnn_states,
+                    rnn_states_actor,
                     rnn_states_critic,
                 )
                 self.insert(data)
@@ -93,26 +93,34 @@ class EnvRunner(Runner):
     @torch.no_grad()
     def collect(self, step):
         values, actions, temp_actions_env, action_log_probs = [], [], [], []
-        rnn_states, rnn_states_critic = [], []
+        rnn_states_actor, rnn_states_critic = [], []
 
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
             breakpoint()
             # Get actions and values from policy
-            value, action, action_log_prob, rnn_state, rnn_state_critic = self.trainer[
-                agent_id
-            ].policy.get_actions(
-                self.buffer[agent_id].share_obs[step],
-                self.buffer[agent_id].obs[step],
-                self.buffer[agent_id].rnn_states[step],
+            (
+                value,
+                action,
+                action_log_prob,
+                rnn_actor_state,
+                rnn_critic_state,
+            ) = self.trainer[agent_id].policy.get_actions(
+                self.buffer[agent_id].node_inputs[step],
+                self.buffer[agent_id].edge_inputs[step],
+                self.buffer[agent_id].budget_inputs[step],
+                self.buffer[agent_id].current_index[step],
+                self.buffer[agent_id].rnn_states_actor[step],
                 self.buffer[agent_id].rnn_states_critic[step],
-                self.buffer[agent_id].masks[step],
+                self.buffer[agent_id].pos_encoding[step],
+                self.buffer[agent_id].mask[step],
+                self.buffer[agent_id].next_belief[step],
             )
             values.append(_t2n(value))
             actions.append(_t2n(action))
             action_log_probs.append(_t2n(action_log_prob))
-            rnn_states.append(_t2n(rnn_state))
-            rnn_states_critic.append(_t2n(rnn_state_critic))
+            rnn_states_actor.append(_t2n(rnn_actor_state))
+            rnn_states_critic.append(_t2n(rnn_critic_state))
 
             # Format actions for the environment
             action_env = self.format_action(action, agent_id)
@@ -124,7 +132,7 @@ class EnvRunner(Runner):
             np.array(values).transpose(1, 0, 2),
             np.array(actions).transpose(1, 0, 2),
             np.array(action_log_probs).transpose(1, 0, 2),
-            np.array(rnn_states).transpose(1, 0, 2, 3),
+            np.array(rnn_states_actor).transpose(1, 0, 2, 3),
             np.array(rnn_states_critic).transpose(1, 0, 2, 3),
             actions_env,
         )
@@ -153,12 +161,12 @@ class EnvRunner(Runner):
             values,
             actions,
             action_log_probs,
-            rnn_states,
+            rnn_states_actor,
             rnn_states_critic,
         ) = data
 
         # Reset RNN states for done episodes
-        rnn_states[dones == True] = np.zeros(
+        rnn_states_actor[dones == True] = np.zeros(
             ((dones == True).sum(), self.recurrent_N, self.hidden_size),
             dtype=np.float32,
         )
@@ -178,7 +186,7 @@ class EnvRunner(Runner):
             self.buffer[agent_id].insert(
                 share_obs,
                 np.array(list(obs[:, agent_id])),
-                rnn_states[:, agent_id],
+                rnn_states_actor[:, agent_id],
                 rnn_states_critic[:, agent_id],
                 actions[:, agent_id],
                 action_log_probs[:, agent_id],

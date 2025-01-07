@@ -5,6 +5,7 @@ from utils.util import get_gard_norm, huber_loss, mse_loss
 from utils.valuenorm import ValueNorm
 from algorithms.utils.util import check
 
+
 class RMAPPO_AttentionNet:
     """
     Trainer class for MAPPO with AttentionNet integration.
@@ -34,9 +35,9 @@ class RMAPPO_AttentionNet:
         self._use_value_active_masks = args.use_value_active_masks
         self._use_policy_active_masks = args.use_policy_active_masks
 
-        assert not (self._use_popart and self._use_valuenorm), (
-            "self._use_popart and self._use_valuenorm cannot be set True simultaneously."
-        )
+        assert not (
+            self._use_popart and self._use_valuenorm
+        ), "self._use_popart and self._use_valuenorm cannot be set True simultaneously."
 
         if self._use_popart:
             self.value_normalizer = self.policy.critic.value_normalizer
@@ -45,12 +46,18 @@ class RMAPPO_AttentionNet:
         else:
             self.value_normalizer = None
 
-    def cal_value_loss(self, values, value_preds_batch, return_batch, active_masks_batch):
-        value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
+    def cal_value_loss(
+        self, values, value_preds_batch, return_batch, active_masks_batch
+    ):
+        value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(
+            -self.clip_param, self.clip_param
+        )
 
         if self._use_popart or self._use_valuenorm:
             self.value_normalizer.update(return_batch)
-            error_clipped = self.value_normalizer.normalize(return_batch) - value_pred_clipped
+            error_clipped = (
+                self.value_normalizer.normalize(return_batch) - value_pred_clipped
+            )
             error_original = self.value_normalizer.normalize(return_batch) - values
         else:
             error_clipped = return_batch - value_pred_clipped
@@ -74,7 +81,9 @@ class RMAPPO_AttentionNet:
         )
 
         if self._use_value_active_masks:
-            value_loss = (value_loss * active_masks_batch).sum() / active_masks_batch.sum()
+            value_loss = (
+                value_loss * active_masks_batch
+            ).sum() / active_masks_batch.sum()
         else:
             value_loss = value_loss.mean()
 
@@ -117,7 +126,10 @@ class RMAPPO_AttentionNet:
 
         # Clipped surrogate loss
         surr1 = imp_weights * adv_targ
-        surr2 = torch.clamp(imp_weights, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ
+        surr2 = (
+            torch.clamp(imp_weights, 1.0 - self.clip_param, 1.0 + self.clip_param)
+            * adv_targ
+        )
 
         policy_loss = -torch.min(surr1, surr2).mean()
 
@@ -134,18 +146,29 @@ class RMAPPO_AttentionNet:
         self.policy.actor_optimizer.step()
 
         # Critic update
-        value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)
+        value_loss = self.cal_value_loss(
+            values, value_preds_batch, return_batch, active_masks_batch
+        )
         self.policy.critic_optimizer.zero_grad()
         (value_loss * self.value_loss_coef).backward()
 
         critic_grad_norm = (
-            nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.max_grad_norm)
+            nn.utils.clip_grad_norm_(
+                self.policy.critic.parameters(), self.max_grad_norm
+            )
             if self._use_max_grad_norm
             else get_gard_norm(self.policy.critic.parameters())
         )
         self.policy.critic_optimizer.step()
 
-        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
+        return (
+            value_loss,
+            critic_grad_norm,
+            policy_loss,
+            dist_entropy,
+            actor_grad_norm,
+            imp_weights,
+        )
 
     def train(self, buffer, update_actor=True):
         """
@@ -165,9 +188,14 @@ class RMAPPO_AttentionNet:
                 buffer.returns[:-1] - buffer.value_preds[:-1], self.num_mini_batch
             )
             for sample in data_generator:
-                value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights = self.ppo_update(
-                    sample, update_actor
-                )
+                (
+                    value_loss,
+                    critic_grad_norm,
+                    policy_loss,
+                    dist_entropy,
+                    actor_grad_norm,
+                    imp_weights,
+                ) = self.ppo_update(sample, update_actor)
                 train_info["value_loss"] += value_loss.item()
                 train_info["policy_loss"] += policy_loss.item()
                 train_info["dist_entropy"] += dist_entropy.item()

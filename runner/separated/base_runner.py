@@ -150,9 +150,15 @@ class Runner(object):
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
             next_value = self.trainer[agent_id].policy.get_values(
-                self.buffer[agent_id].share_obs[-1],
+                self.buffer[agent_id].node_inputs[-1],
+                self.buffer[agent_id].edge_inputs[-1],
+                self.buffer[agent_id].budget_inputs[-1],
+                self.buffer[agent_id].current_index[-1],
+                self.buffer[agent_id].rnn_states_actor[-1],
                 self.buffer[agent_id].rnn_states_critic[-1],
+                self.buffer[agent_id].pos_encoding[-1],
                 self.buffer[agent_id].masks[-1],
+                self.buffer[agent_id].next_belief[-1],
             )
             next_value = _t2n(next_value)
             self.buffer[agent_id].compute_returns(
