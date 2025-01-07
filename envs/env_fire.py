@@ -3,13 +3,13 @@ from numba import jit
 from scipy.ndimage import gaussian_filter
 
 from .fire_commander.Fire_2D import FireCommanderExtreme as Fire
-from .gaussian_process.gp_st import GaussianProcessWrapper
+from .gaussian_process.gp_st import GaussianProcessWrapper, add_t
 from .classes import PRMController, Utils
 
 import copy
 
 
-class EnvCore(object):
+class FireEnvCore(object):
     """
     # FireCommander Sim Wrapper
     """

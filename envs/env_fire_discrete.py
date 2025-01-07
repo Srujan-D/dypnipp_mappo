@@ -1,6 +1,6 @@
 import numpy as np
 from gym import spaces
-from envs.env_fire import EnvCore
+from envs.env_fire import FireEnvCore
 
 
 class DiscreteActionEnv:
@@ -13,7 +13,7 @@ class DiscreteActionEnv:
         Initialize the environment.
         :param config: Configuration dictionary for EnvCore initialization.
         """
-        self.env = EnvCore(
+        self.env = FireEnvCore(
             sample_size=config.get("sample_size", 500),
             k_size=config.get("k_size", 10),
             start=config.get("start", None),

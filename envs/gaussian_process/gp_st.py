@@ -301,7 +301,7 @@ class GaussianProcessWrapper:
         node_pred, node_std = None, None
         node_info, node_info_future = [], []  # (target, node, 2)
         
-        def process_node(gp):
+        def process_node(gp: GaussianProcess):
             node_pred, node_std = gp.update_node(t)
             node_pred_future, node_std_future = gp.update_node(t + 2)
             node_info = [
