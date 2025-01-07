@@ -8,7 +8,7 @@ from .params_robust_attention_net import *
 import os
 import traceback
 
-from transformer_utils import Encoder, Decoder, SingleHeadAttention
+from .transformer_utils import Encoder, Decoder, SingleHeadAttention
 
 
 class AttentionNet(nn.Module):

@@ -1,21 +1,20 @@
 import torch
 import torch.nn as nn
-from utils.util import get_shape_from_obs_space
-from algorithms.utils.attention_net import AttentionNet
+from algorithms.utils.actor_attention_net import ActorAttentionNet
+from algorithms.utils.critic_attention_net import CriticAttentionNet
 
 
 class R_Actor(nn.Module):
     """
-    Actor network using AttentionNet for MAPPO.
+    Actor network using ActorAttentionNet for MAPPO.
     """
 
     def __init__(self, args, input_dim=4, embedding_dim=128, device=torch.device("cpu")):
         super(R_Actor, self).__init__()
         self.tpdv = dict(dtype=torch.float32, device=device)
 
-        # Initialize AttentionNet
-        # input_dim = get_shape_from_obs_space(obs_space)
-        self.attention_net = AttentionNet(
+        # Initialize ActorAttentionNet
+        self.attention_net = ActorAttentionNet(
             input_dim=input_dim, embedding_dim=embedding_dim, device=device
         )
         self.to(device)
@@ -34,11 +33,10 @@ class R_Actor(nn.Module):
         next_belief=None,
     ):
         """
-        Use AttentionNet to compute actions and values.
-        :return: log probabilities (logp_list), value, updated LSTM states (LSTM_h, LSTM_c).
+        Use ActorAttentionNet to compute actions.
+        :return: log probabilities (logp_list), updated LSTM states (LSTM_h, LSTM_c).
         """
-        # Call AttentionNet forward method
-        logp_list, value, LSTM_h, LSTM_c = self.attention_net(
+        logp_list, LSTM_h, LSTM_c = self.attention_net(
             node_inputs,
             edge_inputs,
             budget_inputs,
@@ -50,7 +48,7 @@ class R_Actor(nn.Module):
             i,
             next_belief,
         )
-        return logp_list, value, LSTM_h, LSTM_c
+        return logp_list, LSTM_h, LSTM_c
 
     def evaluate_actions(
         self,
@@ -67,12 +65,12 @@ class R_Actor(nn.Module):
         next_belief=None,
     ):
         """
-        Evaluate actions using AttentionNet.
+        Evaluate actions using ActorAttentionNet.
         :param action: Actions to evaluate.
         :return: log probabilities of actions, entropy of the action distribution.
         """
-        # Forward pass through AttentionNet
-        logp_list, value, _, _ = self.attention_net(
+        # Forward pass through ActorAttentionNet
+        logp_list, _, _ = self.attention_net(
             node_inputs,
             edge_inputs,
             budget_inputs,
@@ -86,7 +84,6 @@ class R_Actor(nn.Module):
         )
 
         # Compute log-probabilities and entropy
-        # Convert log probabilities (logp_list) to a distribution
         action_distribution = torch.distributions.Categorical(logits=logp_list)
 
         # Get log probabilities for the given actions
@@ -100,57 +97,50 @@ class R_Actor(nn.Module):
 
 class R_Critic(nn.Module):
     """
-    Critic network using AttentionNet for MAPPO.
+    Critic network using CriticAttentionNet for MAPPO.
     """
 
     def __init__(self, args, joint_input_dim, embedding_dim=128, device=torch.device("cpu")):
         super(R_Critic, self).__init__()
         self.tpdv = dict(dtype=torch.float32, device=device)
 
-        # Initialize AttentionNet for value computation
-        self.attention_net = AttentionNet(
-            input_dim=joint_input_dim, embedding_dim=128, device=device
+        # Initialize CriticAttentionNet for value computation
+        self.attention_net = CriticAttentionNet(
+            input_dim=joint_input_dim, embedding_dim=embedding_dim, device=device
         )
         self.to(device)
 
     def forward(
         self,
-        node_inputs,
-        edge_inputs,
-        budget_inputs,
-        current_index,
+        global_node_inputs,
+        global_edge_inputs,
+        global_budget_inputs,
+        global_current_indices,
+        global_pos_encoding,
         LSTM_h,
         LSTM_c,
-        pos_encoding,
         mask=None,
-        i=0,
-        next_belief=None,
     ):
         """
-        Use AttentionNet to compute value functions.
-        :param node_inputs: Node inputs for the graph embedding.
-        :param edge_inputs: Edge inputs for the graph embedding.
-        :param budget_inputs: Budget inputs.
-        :param current_index: Current index of the agent.
+        Use CriticAttentionNet to compute value functions.
+        :param global_node_inputs: Combined node inputs for all agents.
+        :param global_edge_inputs: Combined edge inputs for all agents.
+        :param global_budget_inputs: Combined budget inputs for all agents.
+        :param global_current_indices: Combined current indices for all agents.
+        :param global_pos_encoding: Combined positional encoding for all agents.
         :param LSTM_h: Hidden state for the LSTM.
         :param LSTM_c: Cell state for the LSTM.
-        :param pos_encoding: Positional encoding for nodes.
         :param mask: Mask for graph nodes.
-        :param i: Step index.
-        :param next_belief: Belief vector for the next step.
         :return: Value function predictions and updated LSTM states.
         """
-        # Forward pass through AttentionNet
-        _, value, LSTM_h, LSTM_c = self.attention_net(
-            node_inputs,
-            edge_inputs,
-            budget_inputs,
-            current_index,
+        value, LSTM_h, LSTM_c = self.attention_net(
+            global_node_inputs,
+            global_edge_inputs,
+            global_budget_inputs,
+            global_current_indices,
+            global_pos_encoding,
             LSTM_h,
             LSTM_c,
-            pos_encoding,
             mask,
-            i,
-            next_belief,
         )
         return value, LSTM_h, LSTM_c

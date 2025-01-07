@@ -1,9 +1,16 @@
+import logging
 import numpy as np
 import torch
 import torch.nn as nn
 from utils.util import get_gard_norm, huber_loss, mse_loss
 from utils.valuenorm import ValueNorm
 from algorithms.utils.util import check
+
+# # Set up logging
+# logging.basicConfig(
+#     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+# )
+# logger = logging.getLogger(__name__)
 
 
 class RMAPPO_AttentionNet:
@@ -96,7 +103,7 @@ class RMAPPO_AttentionNet:
             budget_inputs_batch,
             current_index_batch,
             pos_encoding_batch,
-            rnn_states_batch,
+            rnn_states_actor_batch,
             rnn_states_critic_batch,
             actions_batch,
             value_preds_batch,
@@ -115,7 +122,7 @@ class RMAPPO_AttentionNet:
             budget_inputs_batch,
             current_index_batch,
             actions_batch,
-            rnn_states_batch,
+            rnn_states_actor_batch,
             rnn_states_critic_batch,
             pos_encoding_batch,
             masks_batch,
@@ -133,6 +140,11 @@ class RMAPPO_AttentionNet:
 
         policy_loss = -torch.min(surr1, surr2).mean()
 
+        # # Log metrics
+        # logger.info(f"Policy Loss: {policy_loss.item():.6f}")
+        # logger.info(f"Entropy: {dist_entropy.item():.6f}")
+        # logger.info(f"Importance Weight Mean: {imp_weights.mean().item():.6f}")
+
         # Actor update
         self.policy.actor_optimizer.zero_grad()
         if update_actor:
@@ -143,6 +155,8 @@ class RMAPPO_AttentionNet:
             if self._use_max_grad_norm
             else get_gard_norm(self.policy.actor.parameters())
         )
+        # logger.info(f"Actor Gradient Norm: {actor_grad_norm:.6f}")
+
         self.policy.actor_optimizer.step()
 
         # Critic update
@@ -159,6 +173,9 @@ class RMAPPO_AttentionNet:
             if self._use_max_grad_norm
             else get_gard_norm(self.policy.critic.parameters())
         )
+        # logger.info(f"Value Loss: {value_loss.item():.6f}")
+        # logger.info(f"Critic Gradient Norm: {critic_grad_norm:.6f}")
+
         self.policy.critic_optimizer.step()
 
         return (

@@ -8,12 +8,12 @@ from .params_robust_attention_net import *
 import os
 import traceback
 
-from transformer_utils import Encoder, Decoder, SingleHeadAttention
+from .transformer_utils import Encoder, Decoder, SingleHeadAttention
 
 
-class AttentionNet(nn.Module):
+class ActorAttentionNet(nn.Module):
     def __init__(self, input_dim, embedding_dim, device):
-        super(AttentionNet, self).__init__()
+        super(ActorAttentionNet, self).__init__()
         self.device = device
 
         self.budget_embedding = nn.Linear(embedding_dim + 2, embedding_dim).to(device)

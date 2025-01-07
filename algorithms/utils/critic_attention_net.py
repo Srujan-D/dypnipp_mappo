@@ -8,7 +8,7 @@ from .params_robust_attention_net import *
 import os
 import traceback
 
-from transformer_utils import Encoder, Decoder, SingleHeadAttention, GraphDecoder
+from .transformer_utils import Encoder, Decoder, SingleHeadAttention, GraphDecoder
 
 
 class CriticAttentionNet(nn.Module):
@@ -22,7 +22,7 @@ class CriticAttentionNet(nn.Module):
         )
         self.current_embedding = nn.Linear(embedding_dim * 2, embedding_dim).to(device)
         self.encoder = Encoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
-        self.decoder = GraphDecoder(embedding_dim).to(device)
+        self.decoder = self.decoder = GraphDecoder(embedding_dim, hidden_dim=128, output_dim=1).to(device)
         self.value_output = nn.Linear(embedding_dim, 1).to(
             device
         )  # Outputs a single scalar value
