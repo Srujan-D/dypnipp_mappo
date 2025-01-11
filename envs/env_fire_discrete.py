@@ -14,7 +14,7 @@ class DiscreteActionEnv:
         :param config: Configuration dictionary for EnvCore initialization.
         """
         self.env = FireEnvCore(
-            sample_size=config.get("sample_size", 500),
+            sample_size=config.get("sample_size", 200),
             k_size=config.get("k_size", 10),
             start=config.get("start", None),
             destination=config.get("destination", None),
@@ -46,6 +46,11 @@ class DiscreteActionEnv:
             for _ in range(self.num_agents)
         ]
         
+        self.node_coords = None
+        self.graph = None
+        self.node_feature = None
+        self.budget = None
+        
     def step(self, actions):
         """
         Perform a step in the environment for all agents.
@@ -56,6 +61,7 @@ class DiscreteActionEnv:
             raise ValueError("Actions must be a list or numpy array.")
 
         # Perform the step in EnvCore
+        # print('>> actions', actions)
         obs, rews, dones, infos = self.env.step(actions)
 
         # Ensure compatibility with gym-like environments
@@ -70,10 +76,11 @@ class DiscreteActionEnv:
         Reset the environment.
         :return: Initial observations for all agents.
         """
-        obs = self.env.reset()[2]
-        # breakpoint()
+        self.node_coords, self.graph, self.node_feature, self.budget = self.env.reset()
+        # obs = self.env.reset()[2]
+        
         # print("obs------------------------", len(obs), np.stack(obs).shape)
-        return np.stack(obs)
+        return self.node_coords, self.graph, self.node_feature, self.budget
 
     def close(self):
         """Close the environment."""
@@ -100,7 +107,7 @@ class DiscreteActionEnv:
 if __name__ == "__main__":
     # Example configuration
     config = {
-        "sample_size": 500,
+        "sample_size": 200,
         "k_size": 10,
         "start": None,
         "destination": None,

@@ -237,7 +237,12 @@ class GaussianProcess:
         fig.colorbar(
             plt.pcolormesh(
                 # X0p, X1p, std, shading="auto", vmin=std.min(), vmax=std.max()
-                X0p, X1p, std, shading="auto", vmin=0.0, vmax=1.0
+                X0p,
+                X1p,
+                std,
+                shading="auto",
+                vmin=0.0,
+                vmax=1.0,
             )
         )
         plt.subplot(2, 2, 1)  # mean
@@ -245,7 +250,12 @@ class GaussianProcess:
         fig.colorbar(
             plt.pcolormesh(
                 # X0p, X1p, y_pred, shading="auto", vmin=y_pred.min(), vmax=y_pred.max()
-                X0p, X1p, y_pred, shading="auto", vmin=0.0, vmax=1.0
+                X0p,
+                X1p,
+                y_pred,
+                shading="auto",
+                vmin=0.0,
+                vmax=1.0,
             )
         )
 
@@ -295,22 +305,19 @@ class GaussianProcessWrapper:
             gp.update_gp()
 
     def update_node_feature(self, t, agent_id=None):
-        if t != self.curr_t:
-            self.curr_t = t
-            self.update_grids()
+        self._update_curr_t(t, agent_id)
+        self.update_grids()
         node_pred, node_std = None, None
         node_info, node_info_future = [], []  # (target, node, 2)
-        
-        def process_node(gp: GaussianProcess):
+
+        def process_node(gp: GaussianProcess, t):
             node_pred, node_std = gp.update_node(t)
             node_pred_future, node_std_future = gp.update_node(t + 2)
-            node_info = [
-            np.hstack((node_pred.reshape(-1, 1), node_std.reshape(-1, 1)))
-            ]
+            node_info = [np.hstack((node_pred.reshape(-1, 1), node_std.reshape(-1, 1)))]
             node_info_future = [
-            np.hstack(
-                (node_pred_future.reshape(-1, 1), node_std_future.reshape(-1, 1))
-            )
+                np.hstack(
+                    (node_pred_future.reshape(-1, 1), node_std_future.reshape(-1, 1))
+                )
             ]
             node_feature = np.concatenate(
                 (np.asarray(node_info), np.asarray(node_info_future)), axis=-1
@@ -319,27 +326,29 @@ class GaussianProcessWrapper:
                 self.node_coords[0].shape[0], -1
             )  # (node, (targetxfeature))
             return node_feature
-        
+
         if agent_id is not None:
             gp = self.GPs[agent_id]
-            return process_node(gp)
+            if type(t) == list:
+                return process_node(gp, t[agent_id])
+            else:
+                return process_node(gp, t)
         else:
             all_node_features = []
             # print('self.GPs is ', len(self.GPs))
-            for gp in self.GPs:
-                node_feature = process_node(gp)
+            for i, gp in enumerate(self.GPs):
+                node_feature = process_node(gp, t[i])
                 # print(">> node_feature is ", node_feature.shape)
                 all_node_features.append(node_feature)
             return all_node_features
-            
-        
+
         # node_feature = np.concatenate(
         #     (np.asarray(node_info), np.asarray(node_info_future)), axis=-1
         # )  # (target, node, features(4))
         # node_feature = node_feature.transpose((1, 0, 2)).reshape(
         #     self.node_coords.shape[0], -1
         # )  # (node, (targetxfeature))
-        
+
         # contiguous at feature level
         # og, og_future = node_feature[:, :2], node_feature[:, 2:]
         # og_pred, og_std = og[:, 0], og[:, 1]
@@ -354,99 +363,128 @@ class GaussianProcessWrapper:
         return node_feature
 
     def update_grids(self):
-        for gp in self.GPs:
-            gp.update_grid(self.curr_t)
-    
+        for i, gp in enumerate(self.GPs):
+            gp.update_grid(self.curr_t[i])
+
     def return_grid(self):
         env_grid_mean = []
         env_grid_std = []
         for gp in self.GPs:
-            env_grid_mean.append(gp.y_pred_at_grid.reshape(self.env_size, self.env_size))
+            env_grid_mean.append(
+                gp.y_pred_at_grid.reshape(self.env_size, self.env_size)
+            )
             env_grid_std.append(gp.std_at_grid.reshape(self.env_size, self.env_size))
         return env_grid_mean[0], env_grid_std[0]
 
-    def eval_avg_RMSE(self, y_true, t, return_all=False):
-        RMSE = []
-        if t != self.curr_t:
-            self.curr_t = t
-            self.update_grids()
-        for i, gp in enumerate(self.GPs):
-            RMSE += [gp.evaluate_RMSE(y_true)]
-        avg_RMSE = np.sqrt(np.mean(np.square(RMSE)))  # quadratic mean
-        return (avg_RMSE, RMSE) if return_all else avg_RMSE
+    def _update_curr_t(self, t, agent_id):
+        """Helper method to update current time consistently"""
+        if self.curr_t is None:
+            if type(t) == list:
+                self.curr_t = t.copy()
+            else:
+                self.curr_t = [t] * self.num_gp
+        
+        if agent_id is not None:
+            if type(t) == list:
+                self.curr_t[agent_id] = t[agent_id]
+            else:
+                self.curr_t[agent_id] = t
+        else:
+            if type(t) == list:
+                self.curr_t = t.copy()
+            else:
+                self.curr_t = [t] * self.num_gp
 
-    def eval_avg_cov_trace(self, t, high_info_idx=None, return_all=False):
-        cov_trace = []
-        if t != self.curr_t:
-            self.curr_t = t
-            self.update_grids()
-        for i, gp in enumerate(self.GPs):
-            idx = None if high_info_idx is None else high_info_idx[i]
-            cov_trace += [gp.evaluate_cov_trace(idx)]
-        avg_cov_trace = np.mean(cov_trace)
-        return (avg_cov_trace, cov_trace) if return_all else avg_cov_trace
+    def _process_single_metric(self, metric_func, t, agent_id=None, **kwargs):
+        """Generic helper for processing metrics"""
+        self._update_curr_t(t, agent_id)
+        self.update_grids()
 
-    def eval_avg_unc(self, t, high_info_idx=None, return_all=False):
-        std_trace = []
-        if t != self.curr_t:
-            self.curr_t = t
-            self.update_grids()
-        for i, gp in enumerate(self.GPs):
-            idx = None if high_info_idx is None else high_info_idx[i]
-            std_trace += [gp.evaluate_unc(idx)]
-        avg_std_trace = np.mean(std_trace)
-        return (avg_std_trace, std_trace) if return_all else avg_std_trace
+        if agent_id is not None:
+            result = [metric_func(self.GPs[agent_id], **kwargs)]
+        else:
+            result = [metric_func(gp, **kwargs) for gp in self.GPs]
 
-    def eval_avg_unc_sum(self, unc, high_info_idx=None, return_all=False):
-        std_sum = []
+        avg_result = (
+            np.mean(result)
+            if metric_func.__name__ != "evaluate_RMSE"
+            else np.sqrt(np.mean(np.square(result)))
+        )
+        return (avg_result, result) if kwargs.get("return_all", False) else result
+
+    def eval_avg_RMSE(self, y_true, t, agent_id=None, return_all=False):
+        return self._process_single_metric(
+            lambda gp, **kwargs: gp.evaluate_RMSE(y_true),
+            t,
+            agent_id,
+            return_all=return_all,
+        )
+
+    def eval_avg_cov_trace(
+        self, t, high_info_idx=None, agent_id=None, return_all=False
+    ):
+        def get_trace(gp, **kwargs):
+            idx = None if high_info_idx is None else high_info_idx[self.GPs.index(gp)]
+            return gp.evaluate_cov_trace(idx)
+
+        return self._process_single_metric(
+            get_trace, t, agent_id, return_all=return_all
+        )
+
+    def eval_avg_unc(self, t, high_info_idx=None, agent_id=None, return_all=False):
+        def get_unc(gp, **kwargs):
+            idx = None if high_info_idx is None else high_info_idx[self.GPs.index(gp)]
+            return gp.evaluate_unc(idx)
+
+        return self._process_single_metric(get_unc, t, agent_id, return_all=return_all)
+
+    def eval_avg_unc_sum(
+        self, unc, high_info_idx=None, agent_id=None, return_all=False
+    ):
         if high_info_idx is None:
             num_high = [self.env_size * self.env_size] * len(self.GPs)
         else:
             num_high = list(map(len, high_info_idx))
-        for i in range(len(self.GPs)):
-            std_sum += [unc[i] * num_high[i]]
+
+        if agent_id is not None:
+            std_sum = [unc[agent_id] * num_high[agent_id]]
+        else:
+            std_sum = [unc[i] * num_high[i] for i in range(len(self.GPs))]
+
         avg_std_sum = np.mean(std_sum)
-        return (avg_std_sum, std_sum) if return_all else avg_std_sum
+        return (avg_std_sum, std_sum) if return_all else std_sum
 
-    def eval_avg_KL(self, y_true, t, return_all=False):
-        KL = []
-        if t != self.curr_t:
-            self.curr_t = t
-            self.update_grids()
-        for i, gp in enumerate(self.GPs):
-            KL += [gp.evaluate_KL_div(y_true)]
-        avg_KL = np.mean(KL)
-        return (avg_KL, KL) if return_all else avg_KL
+    def eval_avg_KL(self, y_true, t, agent_id=None, return_all=False):
+        return self._process_single_metric(
+            lambda gp, **kwargs: gp.evaluate_KL_div(y_true),
+            t,
+            agent_id,
+            return_all=return_all,
+        )
 
-    def eval_avg_JS(self, y_true, t, return_all=False):
-        JS = []
-        if t != self.curr_t:
-            self.curr_t = t
-            self.update_grids()
-        for i, gp in enumerate(self.GPs):
-            JS += [gp.evaluate_JS_div(y_true)]
-        avg_JS = np.mean(JS)
-        return (avg_JS, JS) if return_all else avg_JS
+    def eval_avg_JS(self, y_true, t, agent_id=None, return_all=False):
+        return self._process_single_metric(
+            lambda gp, **kwargs: gp.evaluate_JS_div(y_true),
+            t,
+            agent_id,
+            return_all=return_all,
+        )
 
-    def eval_avg_F1(self, y_true, t, return_all=False):
-        F1 = []
-        if t != self.curr_t:
-            self.curr_t = t
-            self.update_grids()
-        for i, gp in enumerate(self.GPs):
-            F1 += [gp.evaluate_F1score(y_true, self.curr_t)]
-        avg_F1 = np.mean(F1)
-        return (avg_F1, F1) if return_all else avg_F1
+    def eval_avg_F1(self, y_true, t, agent_id=None, return_all=False):
+        return self._process_single_metric(
+            lambda gp, **kwargs: gp.evaluate_F1score(y_true, self.curr_t),
+            t,
+            agent_id,
+            return_all=return_all,
+        )
 
-    def eval_avg_MI(self, t, return_all=False):
-        MI = []
-        if t != self.curr_t:
-            self.curr_t = t
-            self.update_grids()
-        for gp in self.GPs:
-            MI += [gp.evaluate_mutual_info(self.curr_t)]
-        avg_MI = np.mean(MI)
-        return (avg_MI, MI) if return_all else avg_MI
+    def eval_avg_MI(self, t, agent_id=None, return_all=False):
+        return self._process_single_metric(
+            lambda gp, **kwargs: gp.evaluate_mutual_info(self.curr_t),
+            t,
+            agent_id,
+            return_all=return_all,
+        )
 
     def get_high_info_area(self, curr_t, adaptive_t, return_all=False):
         high_info_area = []

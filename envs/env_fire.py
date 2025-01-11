@@ -16,7 +16,7 @@ class FireEnvCore(object):
 
     def __init__(
         self,
-        sample_size=500,
+        sample_size=200,
         k_size=10,
         start=None,
         destination=None,
@@ -35,7 +35,7 @@ class FireEnvCore(object):
 
         self._obstacle = obstacle
         self._budget_range = budget_range
-        self.budget = self.budget_init = np.random.uniform(*self._budget_range)
+        self.budget = self.budget_init = [np.random.uniform(*self._budget_range) for _ in range(agent_num)]
         self._save_image = save_image
         self._seed = seed
 
@@ -70,7 +70,7 @@ class FireEnvCore(object):
         self.underlying_distribution = None
         self.ground_truth = None
 
-        self.obs_dim = 502  # 2D coordinates
+        self.obs_dim = sample_size + 2 # 502  # 2D coordinates
         self.action_dim = self._graph_k_size  # 1D action space
 
         # GP
@@ -103,10 +103,10 @@ class FireEnvCore(object):
         self.MI0 = None
 
         # start point
-        self.current_node_index = 1  # 1  # 0 used in STAMP
+        self.current_node_index = [1 for _ in range(self.agent_num)]  # 1  # 0 used in STAMP
         self.sample = self.start
-        self.dist_residual = 0
-        self.route = []
+        self.dist_residual = [0 for _ in range(self.agent_num)]
+        self.route = [[] for _ in range(self.agent_num)]
 
         self.save_image = save_image
         self.frame_files = []
@@ -119,6 +119,7 @@ class FireEnvCore(object):
             start=self.start,
             seed=self._seed if seed is None else seed,
             fuel=self.fuel,
+            P_agent_num=self.agent_num,
         )
         self.fire.env_init()
 
@@ -158,7 +159,7 @@ class FireEnvCore(object):
         self.ground_truth = gaussian_filter(self.ground_truth, sigma=1.5)
 
         # initialize gp
-        self.curr_t = 0.0
+        self.curr_t = [0.0 for _ in range(self.agent_num)]
         self.gp_wrapper = GaussianProcessWrapper(self.agent_num, self.node_coords)
         self.node_feature = self.gp_wrapper.update_node_feature(self.curr_t)
 
@@ -183,11 +184,11 @@ class FireEnvCore(object):
         self.budget = self.budget_init
 
         # start point
-        self.current_node_index = 1  # 1
-        self.dist_residual = 0
+        self.current_node_index = [1 for _ in range(self.agent_num)]  # 1
+        self.dist_residual = [0 for _ in range(self.agent_num)]
         self.sample = self.start
         # self.random_speed_factor = np.random.rand()
-        self.route = []
+        self.route = [[] for _ in range(self.agent_num)]
 
         # sub_agent_obs = []
         # for i in range(self.agent_num):
@@ -198,14 +199,14 @@ class FireEnvCore(object):
         #     #     self.budget,
         #     # ]
         #     sub_obs = self.node_feature[i]
-        #     # breakpoint()
+        #     
         #     sub_agent_obs.append(sub_obs)
         return self.node_coords, self.graph, self.node_feature, self.budget
 
-    def step(self, actions):
+    def step(self, actions, sample_length=0.2, measurement=True):
         """
         Perform a single global timestep where all agents act simultaneously.
-        Actions: List[[next_node_index, sample_length, measurement]]
+        Actions: List[next_node_index] for each agent
         """
         # Initialize outputs for all agents
         sub_agent_obs = []
@@ -218,12 +219,13 @@ class FireEnvCore(object):
 
         # Parallel processing of agents
         for i in range(self.agent_num):
-            next_node_index, sample_length, measurement = actions[i]
+            curr_node_coords = self.node_coords[i]
+            next_node_index = actions[i]
 
             # Compute movement and sampling
             dist = np.linalg.norm(
-                self.node_coords[self.current_node_index[i]]
-                - self.node_coords[next_node_index]
+                curr_node_coords[self.current_node_index[i]]
+                - curr_node_coords[next_node_index]
             )
             remain_length = dist
             next_length = sample_length - self.dist_residual[i]
@@ -235,22 +237,22 @@ class FireEnvCore(object):
                 # Compute the sample position
                 if no_sample:
                     self.sample[i] = (
-                        self.node_coords[next_node_index]
-                        - self.node_coords[self.current_node_index[i]]
-                    ) * next_length / dist + self.node_coords[
+                        curr_node_coords[next_node_index]
+                        - curr_node_coords[self.current_node_index[i]]
+                    ) * next_length / dist + curr_node_coords[
                         self.current_node_index[i]
                     ]
                 else:
                     self.sample[i] = (
-                        self.node_coords[next_node_index]
-                        - self.node_coords[self.current_node_index[i]]
+                        curr_node_coords[next_node_index]
+                        - curr_node_coords[self.current_node_index[i]]
                     ) * next_length / dist + self.sample[i]
 
                 # Take measurements based on the latest fire state
                 if measurement:
                     observed_value = (
                         self.underlying_distribution.return_fire_at_location(
-                            self.sample[i].reshape(-1, 2)[0], fire_map=self.fire_map
+                            self.sample[i].reshape(-1, 2)[0]
                         )
                     )
                 else:
@@ -272,27 +274,29 @@ class FireEnvCore(object):
                 )
 
             # Update GP and metrics when the agent reaches the next node
-            self.gp_wrapper.GPs[i].update()
+            self.gp_wrapper.GPs[i].update_gp()
             self.dist_residual[i] = remain_length if no_sample else 0.0
 
             # Compute metrics
             actual_t = self.curr_t[i]
             actual_budget = self.budget[i] - dist
             self.node_feature[i] = self.gp_wrapper.update_node_feature(actual_t, agent_id=i)
-            self.RMSE[i] = self.gp_wrapper.eval_avg_RMSE(self.ground_truth, actual_t)
-            cov_trace = self.gp_wrapper.eval_avg_cov_trace(actual_t)
-            unc, unc_list = self.gp_wrapper.eval_avg_unc(actual_t, return_all=True)
+            self.RMSE[i] = self.gp_wrapper.eval_avg_RMSE(self.ground_truth, actual_t, agent_id=i)
+            cov_trace = self.gp_wrapper.eval_avg_cov_trace(actual_t, agent_id=i)[0]
+            unc, unc_list = self.gp_wrapper.eval_avg_unc(actual_t, return_all=True, agent_id=i)
             JS, JS_list = self.gp_wrapper.eval_avg_JS(
-                self.ground_truth, actual_t, return_all=True
+                self.ground_truth, actual_t, return_all=True, agent_id=i
             )
             KL, KL_list = self.gp_wrapper.eval_avg_KL(
-                self.ground_truth, actual_t, return_all=True
+                self.ground_truth, actual_t, return_all=True, agent_id=i
             )
 
+            
             # Reward logic
             if next_node_index in self.route[i][-2:]:
                 reward += -0.1
             elif self.cov_trace[i] > cov_trace:
+                # breakpoint()
                 reward += (self.cov_trace[i] - cov_trace) / self.cov_trace[i]
             self.cov_trace[i] = cov_trace
             if done:
@@ -303,20 +307,26 @@ class FireEnvCore(object):
             self.current_node_index[i] = next_node_index
             if not done and actual_budget <= 0.0005:
                 done = True
+                
+            # node_inputs = self.compute_node_inputs(self.node_feature[i])
+            # edge_inputs = self.compute_edge_inputs(graph)
+            # budget_inputs = self.compute_budget_inputs(actual_budget, self.current_node_index[i])
 
             # Append outputs for the agent
             sub_agent_obs.append(self.node_feature[i])  # Only features go into observations
+            if type(reward) == np.ndarray:
+                reward = reward[0]
             sub_agent_reward.append([reward])
             sub_agent_done.append(done)
             sub_agent_info.append({"actual_budget": actual_budget})  # Store scalar in info
 
             # Return the updated structure
-            return [sub_agent_obs, sub_agent_reward, sub_agent_done, sub_agent_info]
+        return [sub_agent_obs, sub_agent_reward, sub_agent_done, sub_agent_info]
 
 
     def update_fire(self):
         # Fire updates independently of agents' actions
-        fire_state, _, _, _, _, interp_fire_intensity = self.fire.env_step(r_func="RF4")
+        fire_state, _, _, _, _, interp_fire_intensity = self.fire.env_step(r_func="NA")
         self.set_momentum_GT(fire_map=interp_fire_intensity)
 
     @staticmethod
@@ -390,3 +400,15 @@ class FireEnvCore(object):
         # new GT = 0.9 * old GT + 0.1 * new GT
         self.ground_truth = 0.9 * self.ground_truth + 0.1 * ground_truth.reshape(-1)
         del ground_truth
+
+    def calc_estimate_budget(self, agent_ID, budget, current_idx):
+        all_budget = []
+        current_coord = self.node_coords[agent_ID][current_idx]
+        end_coord = self.node_coords[agent_ID][0]
+        for i, point_coord in enumerate(self.node_coords[agent_ID]):
+            dist_current2point = self.graph_PRM[agent_ID].calcDistance(current_coord, point_coord)
+            dist_point2end = self.graph_PRM[agent_ID].calcDistance(point_coord, end_coord)
+            estimate_budget = (budget - dist_current2point - dist_point2end) / 10
+            # estimate_budget = (budget - dist_current2point - dist_point2end) / budget
+            all_budget.append(estimate_budget)
+        return np.asarray(all_budget).reshape(i + 1, 1)

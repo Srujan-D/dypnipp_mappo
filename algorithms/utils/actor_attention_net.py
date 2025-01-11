@@ -16,15 +16,24 @@ class ActorAttentionNet(nn.Module):
         super(ActorAttentionNet, self).__init__()
         self.device = device
 
-        self.budget_embedding = nn.Linear(embedding_dim + 2, embedding_dim).to(device)
+        self.initial_embedding = nn.Linear(
+            input_dim, embedding_dim
+        )  # layer for non-end position
+        self.end_embedding = nn.Linear(
+            input_dim, embedding_dim
+        )  # embedding layer for end position
+        self.pos_embedding = nn.Linear(32, embedding_dim)
+
+        # self.budget_embedding = nn.Linear(embedding_dim + 2, embedding_dim).to(device)
         self.current_embedding = nn.Linear(embedding_dim * 2, embedding_dim).to(device)
         self.encoder = Encoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
         self.decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
         self.pointer = SingleHeadAttention(embedding_dim)
 
-        self.LSTM = nn.LSTM(
-            embedding_dim + BELIEF_EMBEDDING_DIM, embedding_dim, batch_first=True
-        )
+        # self.LSTM = nn.LSTM(
+        #     embedding_dim + BELIEF_EMBEDDING_DIM, embedding_dim, batch_first=True
+        # )
+        self.LSTM = nn.LSTM(embedding_dim, embedding_dim, batch_first=True)
         self.value_output = nn.Linear(embedding_dim, 1).to(device)
 
     def select_next_node(
@@ -40,26 +49,35 @@ class ActorAttentionNet(nn.Module):
         next_belief=None,
     ):
         # Adjust dimensions for LSTM
+        
+        # LSTM_h = LSTM_h.unsqueeze(0)
+        # LSTM_c = LSTM_c.unsqueeze(0)
         LSTM_h = LSTM_h.permute(1, 0, 2)
         LSTM_c = LSTM_c.permute(1, 0, 2)
 
-        batch_size = edge_inputs.size(0)
+        n_rollout_threads = edge_inputs.size(0)
         sample_size = edge_inputs.size(1)
         k_size = edge_inputs.size(2)
         embedding_dim = embedding_feature.size(2)
 
         # Current edge and connected node features
         current_edge = torch.gather(
-            edge_inputs, 1, current_index.repeat(1, 1, k_size)
+            edge_inputs, 1, current_index.repeat(1, 1, k_size).to(torch.int64)
         ).permute(0, 2, 1)
         connected_nodes_feature = torch.gather(
-            embedding_feature, 1, current_edge.repeat(1, 1, embedding_dim)
+            embedding_feature,
+            1,
+            current_edge.repeat(1, 1, embedding_dim).to(torch.int64),
         )
-        connected_nodes_budget = torch.gather(budget_inputs, 1, current_edge)
+        connected_nodes_budget = torch.gather(
+            budget_inputs, 1, current_edge.to(torch.int64)
+        )
 
         # Current node feature and LSTM input
         current_node_feature = torch.gather(
-            embedding_feature, 1, current_index.repeat(1, 1, embedding_dim)
+            embedding_feature,
+            1,
+            current_index.repeat(1, 1, embedding_dim).to(torch.int64),
         )
         if next_belief is not None:
             current_node_feature = torch.cat(
@@ -67,7 +85,7 @@ class ActorAttentionNet(nn.Module):
             )
 
         current_node_feature, (LSTM_h, LSTM_c) = self.LSTM(
-            current_node_feature, (LSTM_h, LSTM_c)
+            current_node_feature, (LSTM_h.contiguous(), LSTM_c.contiguous())
         )
 
         # Current and end node features
@@ -79,13 +97,13 @@ class ActorAttentionNet(nn.Module):
 
         # Masking invalid actions
         if mask is not None:
-            current_mask = torch.gather(mask, 1, current_index.repeat(1, 1, k_size)).to(
-                embedding_feature.device
-            )
+            current_mask = torch.gather(
+                mask, 1, current_index.repeat(1, 1, k_size).to(torch.int64)
+            ).to(embedding_feature.device)
         else:
-            current_mask = torch.zeros((batch_size, 1, k_size), dtype=torch.int64).to(
-                embedding_feature.device
-            )
+            current_mask = torch.zeros(
+                (n_rollout_threads, 1, k_size), dtype=torch.int64
+            ).to(embedding_feature.device)
         current_mask = torch.where(
             connected_nodes_budget.permute(0, 2, 1) > 0,
             current_mask,
@@ -114,6 +132,7 @@ class ActorAttentionNet(nn.Module):
         # node_inputs (batch, sample_size+2, 2) end position and start position are the first two in the inputs
         # edge_inputs (batch, sample_size+2, k_size)
         # mask (batch, sample_size+2, k_size)
+        
         end_position = node_inputs[:, 0, :].unsqueeze(1)
         embedding_feature = torch.cat(
             (
@@ -182,4 +201,4 @@ class ActorAttentionNet(nn.Module):
             i,
             next_belief,
         )
-        return logp_list, value, LSTM_h, LSTM_c
+        return logp_list, LSTM_h, LSTM_c

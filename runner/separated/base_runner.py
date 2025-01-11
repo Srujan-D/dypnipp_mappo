@@ -32,7 +32,7 @@ class Runner(object):
         self.n_rollout_threads = self.all_args.n_rollout_threads
         self.n_eval_rollout_threads = self.all_args.n_eval_rollout_threads
         self.use_linear_lr_decay = self.all_args.use_linear_lr_decay
-        self.hidden_size = self.all_args.hidden_size
+        self.embedding_dim = self.all_args.embedding_dim
         self.use_render = self.all_args.use_render
         self.recurrent_N = self.all_args.recurrent_N
 
@@ -118,6 +118,7 @@ class Runner(object):
                 self.envs.observation_space[agent_id]["shape"],
                 share_observation_space,
                 self.envs.action_space[agent_id],
+                agent_ID=agent_id,
             )
             # joint_input_dim = (
             #     self.all_args.input_dim * self.all_args.agent_num

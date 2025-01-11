@@ -48,7 +48,7 @@ class R_Actor(nn.Module):
             i,
             next_belief,
         )
-        return logp_list, LSTM_h, LSTM_c
+        return logp_list, [LSTM_h, LSTM_c]
 
     def evaluate_actions(
         self,
@@ -100,13 +100,13 @@ class R_Critic(nn.Module):
     Critic network using CriticAttentionNet for MAPPO.
     """
 
-    def __init__(self, args, joint_input_dim, embedding_dim=128, device=torch.device("cpu")):
+    def __init__(self, args, joint_input_dim=4, embedding_dim=128, agent_num=1, device=torch.device("cpu")):
         super(R_Critic, self).__init__()
         self.tpdv = dict(dtype=torch.float32, device=device)
 
         # Initialize CriticAttentionNet for value computation
         self.attention_net = CriticAttentionNet(
-            input_dim=joint_input_dim, embedding_dim=embedding_dim, device=device
+            input_dim=joint_input_dim, embedding_dim=embedding_dim, agent_num=agent_num, device=device
         )
         self.to(device)
 
@@ -143,4 +143,4 @@ class R_Critic(nn.Module):
             LSTM_c,
             mask,
         )
-        return value, LSTM_h, LSTM_c
+        return value, [LSTM_h, LSTM_c]

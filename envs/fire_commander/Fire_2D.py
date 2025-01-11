@@ -85,7 +85,7 @@ class FireCommanderExtreme(object):
         self.start = []
         if start is not None:
             for s in start:
-                # breakpoint()
+                
                 self.start.append([
                     int((s[0] + 1) * self.world_size / 2),
                     int((s[1] + 1) * self.world_size / 2),
@@ -177,50 +177,50 @@ class FireCommanderExtreme(object):
         # the END flag
         self.done = False
 
-        # keeping track of neighboring agents (works with both 2D and 3D positions)
-        self.adjacent_agents_PnP = []
-        self.adjacent_agents_PnA = []
-        self.adjacent_agents_AnA = []
-        # Perception-Perception adjacency
-        for i in range(self.perception_agent_num):
-            for j in range(self.perception_agent_num):
-                if i != j:
-                    pose1 = self.agent_state[i]
-                    pose2 = self.agent_state[j]
-                    if Agent_Util.adjacent_agents(
-                        pose1[0 : self.agent_pose_dim - 1],
-                        pose2[0 : self.agent_pose_dim - 1],
-                        hop_num=self.comm_hop,
-                    ):
-                        self.adjacent_agents_PnP.append([i, j])
-        # Perception-Action adjacency
-        for i in range(self.perception_agent_num):
-            for j in range(self.action_agent_num):
-                pose1 = self.agent_state[i]
-                pose2 = self.agent_state[self.perception_agent_num + j]
-                if Agent_Util.adjacent_agents(
-                    pose1[0 : self.agent_pose_dim - 1],
-                    pose2[0 : self.agent_pose_dim - 1],
-                    hop_num=self.comm_hop,
-                ):
-                    self.adjacent_agents_PnA.append([i, self.perception_agent_num + j])
-        # Action-Action adjacency
-        for i in range(self.action_agent_num):
-            for j in range(self.action_agent_num):
-                if i != j:
-                    pose1 = self.agent_state[self.perception_agent_num + i]
-                    pose2 = self.agent_state[self.perception_agent_num + j]
-                    if Agent_Util.adjacent_agents(
-                        pose1[0 : self.agent_pose_dim - 1],
-                        pose2[0 : self.agent_pose_dim - 1],
-                        hop_num=self.comm_hop,
-                    ):
-                        self.adjacent_agents_AnA.append(
-                            [
-                                self.perception_agent_num + i,
-                                self.perception_agent_num + j,
-                            ]
-                        )
+        # # keeping track of neighboring agents (works with both 2D and 3D positions)
+        # self.adjacent_agents_PnP = []
+        # self.adjacent_agents_PnA = []
+        # self.adjacent_agents_AnA = []
+        # # Perception-Perception adjacency
+        # for i in range(self.perception_agent_num):
+        #     for j in range(self.perception_agent_num):
+        #         if i != j:
+        #             pose1 = self.agent_state[i]
+        #             pose2 = self.agent_state[j]
+        #             if Agent_Util.adjacent_agents(
+        #                 pose1[0 : self.agent_pose_dim - 1],
+        #                 pose2[0 : self.agent_pose_dim - 1],
+        #                 hop_num=self.comm_hop,
+        #             ):
+        #                 self.adjacent_agents_PnP.append([i, j])
+        # # Perception-Action adjacency
+        # for i in range(self.perception_agent_num):
+        #     for j in range(self.action_agent_num):
+        #         pose1 = self.agent_state[i]
+        #         pose2 = self.agent_state[self.perception_agent_num + j]
+        #         if Agent_Util.adjacent_agents(
+        #             pose1[0 : self.agent_pose_dim - 1],
+        #             pose2[0 : self.agent_pose_dim - 1],
+        #             hop_num=self.comm_hop,
+        #         ):
+        #             self.adjacent_agents_PnA.append([i, self.perception_agent_num + j])
+        # # Action-Action adjacency
+        # for i in range(self.action_agent_num):
+        #     for j in range(self.action_agent_num):
+        #         if i != j:
+        #             pose1 = self.agent_state[self.perception_agent_num + i]
+        #             pose2 = self.agent_state[self.perception_agent_num + j]
+        #             if Agent_Util.adjacent_agents(
+        #                 pose1[0 : self.agent_pose_dim - 1],
+        #                 pose2[0 : self.agent_pose_dim - 1],
+        #                 hop_num=self.comm_hop,
+        #             ):
+        #                 self.adjacent_agents_AnA.append(
+        #                     [
+        #                         self.perception_agent_num + i,
+        #                         self.perception_agent_num + j,
+        #                     ]
+        #                 )
 
         # task complete info
         self.perception_complete = 0
@@ -317,102 +317,102 @@ class FireCommanderExtreme(object):
             self.frame.append(state)
         """
 
-        # TODO: DISCRETE ADAJACENCY CHECK ############################################################################################################
-        # determining the neighboring agents (works with both 2D and 3D positions)
-        self.adjacent_agents_PnP = []
-        self.adjacent_agents_PnA = []
-        self.adjacent_agents_AnA = []
-        # Perception-Perception adjacency
-        for i in range(self.perception_agent_num):
-            for j in range(self.perception_agent_num):
-                if i != j:
-                    pose1 = self.agent_state[i]
-                    pose2 = self.agent_state[j]
-                    if Agent_Util.adjacent_agents(
-                        pose1[0 : self.agent_pose_dim - 1],
-                        pose2[0 : self.agent_pose_dim - 1],
-                        hop_num=self.comm_hop,
-                    ):
-                        self.adjacent_agents_PnP.append([i, j])
-        # Perception-Action adjacency
-        for i in range(self.perception_agent_num):
-            for j in range(self.action_agent_num):
-                pose1 = self.agent_state[i]
-                pose2 = self.agent_state[self.perception_agent_num + j]
-                if Agent_Util.adjacent_agents(
-                    pose1[0 : self.agent_pose_dim - 1],
-                    pose2[0 : self.agent_pose_dim - 1],
-                    hop_num=self.comm_hop,
-                ):
-                    self.adjacent_agents_PnA.append([i, self.perception_agent_num + j])
-        # Action-Action adjacency
-        for i in range(self.action_agent_num):
-            for j in range(self.action_agent_num):
-                if i != j:
-                    pose1 = self.agent_state[self.perception_agent_num + i]
-                    pose2 = self.agent_state[self.perception_agent_num + j]
-                    if Agent_Util.adjacent_agents(
-                        pose1[0 : self.agent_pose_dim - 1],
-                        pose2[0 : self.agent_pose_dim - 1],
-                        hop_num=self.comm_hop,
-                    ):
-                        self.adjacent_agents_AnA.append(
-                            [
-                                self.perception_agent_num + i,
-                                self.perception_agent_num + j,
-                            ]
-                        )
+        # # TODO: DISCRETE ADAJACENCY CHECK ############################################################################################################
+        # # determining the neighboring agents (works with both 2D and 3D positions)
+        # self.adjacent_agents_PnP = []
+        # self.adjacent_agents_PnA = []
+        # self.adjacent_agents_AnA = []
+        # # Perception-Perception adjacency
+        # for i in range(self.perception_agent_num):
+        #     for j in range(self.perception_agent_num):
+        #         if i != j:
+        #             pose1 = self.agent_state[i]
+        #             pose2 = self.agent_state[j]
+        #             if Agent_Util.adjacent_agents(
+        #                 pose1[0 : self.agent_pose_dim - 1],
+        #                 pose2[0 : self.agent_pose_dim - 1],
+        #                 hop_num=self.comm_hop,
+        #             ):
+        #                 self.adjacent_agents_PnP.append([i, j])
+        # # Perception-Action adjacency
+        # for i in range(self.perception_agent_num):
+        #     for j in range(self.action_agent_num):
+        #         pose1 = self.agent_state[i]
+        #         pose2 = self.agent_state[self.perception_agent_num + j]
+        #         if Agent_Util.adjacent_agents(
+        #             pose1[0 : self.agent_pose_dim - 1],
+        #             pose2[0 : self.agent_pose_dim - 1],
+        #             hop_num=self.comm_hop,
+        #         ):
+        #             self.adjacent_agents_PnA.append([i, self.perception_agent_num + j])
+        # # Action-Action adjacency
+        # for i in range(self.action_agent_num):
+        #     for j in range(self.action_agent_num):
+        #         if i != j:
+        #             pose1 = self.agent_state[self.perception_agent_num + i]
+        #             pose2 = self.agent_state[self.perception_agent_num + j]
+        #             if Agent_Util.adjacent_agents(
+        #                 pose1[0 : self.agent_pose_dim - 1],
+        #                 pose2[0 : self.agent_pose_dim - 1],
+        #                 hop_num=self.comm_hop,
+        #             ):
+        #                 self.adjacent_agents_AnA.append(
+        #                     [
+        #                         self.perception_agent_num + i,
+        #                         self.perception_agent_num + j,
+        #                     ]
+        #                 )
 
         # TODO: REWARD STRUCTURE #####################################################################################################################
-        all_adjacencies = (
-            self.adjacent_agents_PnP
-            + self.adjacent_agents_AnA
-            + self.adjacent_agents_PnA
-        )
-        if r_func == "RF1":
-            self.reward = self.get_reward1(
-                len(self.onFire_List),
-                sum(self.sensed_contribution),
-                sum(self.pruned_contribution),
-                all_adjacencies,
-                time_passed,
-            )
-        elif r_func == "RF2":
-            self.reward = self.get_reward2(
-                len(self.onFire_List),
-                sum(self.sensed_contribution),
-                sum(self.pruned_contribution),
-                all_adjacencies,
-                time_passed,
-            )
-        elif r_func == "RF3":
-            self.reward = self.get_reward3(
-                len(self.onFire_List),
-                sum(self.sensed_contribution),
-                sum(self.pruned_contribution),
-                all_adjacencies,
-                time_passed,
-            )
-        elif r_func == "RF4":
-            self.reward = self.get_reward4(
-                len(self.onFire_List),
-                sum(self.sensed_contribution),
-                sum(self.pruned_contribution),
-                all_adjacencies,
-                time_passed,
-            )
-        elif r_func is None:
-            self.reward = self.get_reward1(
-                len(self.onFire_List),
-                sum(self.sensed_contribution),
-                sum(self.pruned_contribution),
-                all_adjacencies,
-                time_passed,
-            )
-        else:
-            raise ValueError(
-                ">>> Oops! The specified Reward Function name doesn't exist. Options: RF1, RF2, RF3"
-            )
+        # all_adjacencies = (
+        #     self.adjacent_agents_PnP
+        #     + self.adjacent_agents_AnA
+        #     + self.adjacent_agents_PnA
+        # )
+        # if r_func == "RF1":
+        #     self.reward = self.get_reward1(
+        #         len(self.onFire_List),
+        #         sum(self.sensed_contribution),
+        #         sum(self.pruned_contribution),
+        #         all_adjacencies,
+        #         time_passed,
+        #     )
+        # elif r_func == "RF2":
+        #     self.reward = self.get_reward2(
+        #         len(self.onFire_List),
+        #         sum(self.sensed_contribution),
+        #         sum(self.pruned_contribution),
+        #         all_adjacencies,
+        #         time_passed,
+        #     )
+        # elif r_func == "RF3":
+        #     self.reward = self.get_reward3(
+        #         len(self.onFire_List),
+        #         sum(self.sensed_contribution),
+        #         sum(self.pruned_contribution),
+        #         all_adjacencies,
+        #         time_passed,
+        #     )
+        # elif r_func == "RF4":
+        #     self.reward = self.get_reward4(
+        #         len(self.onFire_List),
+        #         sum(self.sensed_contribution),
+        #         sum(self.pruned_contribution),
+        #         all_adjacencies,
+        #         time_passed,
+        #     )
+        # elif r_func is None:
+        #     self.reward = self.get_reward1(
+        #         len(self.onFire_List),
+        #         sum(self.sensed_contribution),
+        #         sum(self.pruned_contribution),
+        #         all_adjacencies,
+        #         time_passed,
+        #     )
+        # else:
+        #     print(
+        #         ">>> Oops! The specified Reward Function name doesn't exist. Options: RF1, RF2, RF3; RETURNING 0"
+        #     )
 
         # if all the fire fronts have been sensed, exit the environment
         # Perception performance: (sensed + pruned) / (active + pruned)
@@ -443,6 +443,7 @@ class FireCommanderExtreme(object):
         # loc_ = loc.copy()
         # self.agent_state[0][0] = int(loc_[0] * self.world_size)
         # self.agent_state[0][1] = int(loc_[1] * self.world_size)
+        # breakpoint()
         loc_ = self.convert_coords2world(loc)
         self.agent_state[agent_id][0] = loc_[0]
         self.agent_state[agent_id][1] = loc_[1]

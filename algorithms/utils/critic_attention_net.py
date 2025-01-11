@@ -12,64 +12,57 @@ from .transformer_utils import Encoder, Decoder, SingleHeadAttention, GraphDecod
 
 
 class CriticAttentionNet(nn.Module):
-    def __init__(self, input_dim, embedding_dim, device):
+    def __init__(self, input_dim, embedding_dim, agent_num, device):
         super(CriticAttentionNet, self).__init__()
         self.device = device
+        self.agent_num = agent_num
 
+        # Initial embeddings remain the same as they process per-node features
+        self.initial_embedding = nn.Linear(input_dim, embedding_dim)
+        self.end_embedding = nn.Linear(input_dim, embedding_dim)
+        self.pos_embedding = nn.Linear(32, embedding_dim)
+
+        # Adjust budget embedding for multi-agent
         self.budget_embedding = nn.Linear(embedding_dim + 2, embedding_dim).to(device)
-        self.LSTM = nn.LSTM(
-            embedding_dim + BELIEF_EMBEDDING_DIM, embedding_dim, batch_first=True
+
+        # LSTM now processes features for all agents
+        self.LSTM = nn.LSTM(embedding_dim, embedding_dim, batch_first=True)
+
+        # Increase attention heads for multi-agent processing
+        self.encoder = Encoder(
+            embedding_dim=embedding_dim,
+            n_head=8,  # Increased heads to better handle multi-agent relationships
+            n_layer=2,  # Increased layers for more complex interactions
         )
-        self.current_embedding = nn.Linear(embedding_dim * 2, embedding_dim).to(device)
-        self.encoder = Encoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
-        self.decoder = self.decoder = GraphDecoder(embedding_dim, hidden_dim=128, output_dim=1).to(device)
-        self.value_output = nn.Linear(embedding_dim, 1).to(
-            device
-        )  # Outputs a single scalar value
+
+        # Adjust decoder to handle larger concatenated input
+        self.decoder = GraphDecoder(
+            embedding_dim,
+            hidden_dim=embedding_dim,  # Increased hidden dim for more capacity
+            output_dim=embedding_dim,
+        ).to(device)
+
+        self.value_output = nn.Linear(embedding_dim, 1).to(device)
 
     def graph_embedding(self, node_inputs, edge_inputs, pos_encoding, mask=None):
-        # current_position (batch, 1, 2)
-        # end_position (batch, 1,2)
-        # node_inputs (batch, sample_size+2, 2) end position and start position are the first two in the inputs
-        # edge_inputs (batch, sample_size+2, k_size)
-        # mask (batch, sample_size+2, k_size)
-        end_position = node_inputs[:, 0, :].unsqueeze(1)
-        embedding_feature = torch.cat(
-            (
-                self.end_embedding(end_position),
-                self.initial_embedding(node_inputs[:, 1:, :]),
-            ),
-            dim=1,
-        )
+        # node_inputs shape: (batch, (sample_size+2)*num_agents, 2)
+        # Handle multiple end positions (one per agent)
+        
+        end_positions = node_inputs[:, : self.agent_num, :]  # Get all end positions
+        remaining_nodes = node_inputs[:, self.agent_num :, :]
 
+        # Embed end positions and remaining nodes
+        end_embeddings = self.end_embedding(end_positions)
+        remaining_embeddings = self.initial_embedding(remaining_nodes)
+
+        # Combine embeddings
+        embedding_feature = torch.cat((end_embeddings, remaining_embeddings), dim=1)
+
+        # Add positional encodings
         pos_encoding = self.pos_embedding(pos_encoding)
         embedding_feature = embedding_feature + pos_encoding
 
-        sample_size = embedding_feature.size()[1]
-        embedding_dim = embedding_feature.size()[2]
-
-        # NOTE: below comments are copied from catnipp's code
-
-        # for layer in self.nodes_update_layers:
-        #    updated_node_feature_list = []
-        #    for i in range(sample_size):
-        #        # print(embedding_feature)
-        #        if i==0:
-        #            updated_node_feature_list.append(embedding_feature[:,i,:].unsqueeze(1))
-        #        else:
-        #            connected_nodes_feature = torch.gather(input=embedding_feature, dim=1,
-        #                                                   index=edge_inputs[:, i, :].unsqueeze(-1).repeat(1, 1,embedding_dim))
-        # (batch, k_size, embedding_size)
-        # print(connected_nodes_feature)
-        #            if mask is not None:
-        #                node_mask = mask[:,i,:].unsqueeze(1)
-        #            else:
-        #                node_mask = None
-        #            updated_node_feature_list.append(
-        #                layer(tgt=embedding_feature[:, i, :].unsqueeze(1), memory=connected_nodes_feature,mask=node_mask))
-        #    updated_node_feature = torch.cat(updated_node_feature_list,dim=1)
-        #    embedding_feature = updated_node_feature
-        # print(embedding_feature.size())
+        # Process through encoder
         embedding_feature = self.encoder(embedding_feature)
 
         return embedding_feature
@@ -86,14 +79,12 @@ class CriticAttentionNet(nn.Module):
         mask=None,
         i=0,
     ):
-        """
-        Forward pass for the critic.
-        Processes concatenated inputs across agents to compute a global value function.
-        """
-        # Graph embedding with positional encodings
-        embedding_feature = self.graph_embedding(node_inputs, edge_inputs, pos_encoding, mask)
+        # Get graph embeddings for the concatenated multi-agent input
+        embedding_feature = self.graph_embedding(
+            node_inputs, edge_inputs, pos_encoding, mask
+        )
 
-        # Process budget information
+        # Process budget information (now includes all agents)
         th = (
             torch.FloatTensor([ADAPTIVE_TH])
             .unsqueeze(0)
@@ -101,23 +92,33 @@ class CriticAttentionNet(nn.Module):
             .repeat(budget_inputs.size(0), budget_inputs.size(1), 1)
             .to(self.device)
         )
+
         embedding_feature = self.budget_embedding(
             torch.cat((embedding_feature, budget_inputs, th), dim=-1)
         )
 
-        # Current node embedding
+        # Process current nodes for all agents
         current_node_feature = torch.gather(
-            embedding_feature, 1, current_index.repeat(1, 1, embedding_feature.size(-1))
+            embedding_feature,
+            1,
+            current_index.repeat(1, 1, embedding_feature.size(-1)).to(torch.int64),
         )
+        
+        LSTM_h = LSTM_h.permute(1, 0, 2)
+        LSTM_c = LSTM_c.permute(1, 0, 2)
+        
         current_node_feature, (LSTM_h, LSTM_c) = self.LSTM(
             current_node_feature, (LSTM_h, LSTM_c)
         )
+        
+        LSTM_h = LSTM_h.permute(1, 0, 2)
+        LSTM_c = LSTM_c.permute(1, 0, 2)
+        
+        
+        # Get global features considering all agents
+        global_feature = self.decoder(embedding_feature) #, mask=mask)
 
-        # Decode embedding features (aggregate global graph information)
-        global_feature = self.decoder(embedding_feature, mask=mask)
-
-        # Compute value using the global feature
+        # Compute centralized value
         value = self.value_output(global_feature)
 
         return value, LSTM_h, LSTM_c
-

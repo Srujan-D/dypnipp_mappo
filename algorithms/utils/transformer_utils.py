@@ -117,6 +117,7 @@ class MultiHeadAttention(nn.Module):
         Mask should contain 1 if attention is not possible (i.e. mask is negative adjacency)
         :return:
         """
+        
         if h is None:
             h = q
 
@@ -302,6 +303,7 @@ class GraphDecoder(nn.Module):
         """
         # Apply attention to aggregate node embeddings
         # Note: Attention expects (batch_size, num_nodes, input_dim) -> (batch_size, num_nodes, input_dim)
+        
         if mask is not None:
             mask = ~mask.bool()  # Convert to True for masked elements
         aggregated_embeddings, _ = self.attention(
@@ -315,6 +317,7 @@ class GraphDecoder(nn.Module):
         global_summary = aggregated_embeddings.mean(
             dim=1
         )  # Shape: (batch_size, input_dim)
+        
 
         # Pass through feedforward layers
         global_summary = self.fc1(global_summary)

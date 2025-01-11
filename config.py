@@ -158,7 +158,9 @@ def get_config():
     )
 
     # prepare parameters
-    parser.add_argument("--algorithm_name", type=str, default="mappo", choices=["rmappo", "mappo"])
+    parser.add_argument(
+        "--algorithm_name", type=str, default="mappo", choices=["rmappo", "mappo"]
+    )
 
     parser.add_argument(
         "--experiment_name",
@@ -166,7 +168,9 @@ def get_config():
         default="check",
         help="an identifier to distinguish different experiment.",
     )
-    parser.add_argument("--seed", type=int, default=1, help="Random seed for numpy/torch")
+    parser.add_argument(
+        "--seed", type=int, default=1, help="Random seed for numpy/torch"
+    )
     parser.add_argument(
         "--cuda",
         action="store_false",
@@ -217,7 +221,9 @@ def get_config():
     )
 
     # env parameters
-    parser.add_argument("--env_name", type=str, default="MyEnv", help="specify the name of environment")
+    parser.add_argument(
+        "--env_name", type=str, default="MyEnv", help="specify the name of environment"
+    )
     parser.add_argument(
         "--use_obs_instead_of_state",
         action="store_true",
@@ -226,7 +232,9 @@ def get_config():
     )
 
     # replay buffer parameters
-    parser.add_argument("--episode_length", type=int, default=200, help="Max length for any episode")
+    parser.add_argument(
+        "--episode_length", type=int, default=200, help="Max length for any episode"
+    )
 
     # network parameters
     parser.add_argument(
@@ -265,7 +273,9 @@ def get_config():
         default=1,
         help="Number of layers for actor/critic networks",
     )
-    parser.add_argument("--use_ReLU", action="store_false", default=True, help="Whether to use ReLU")
+    parser.add_argument(
+        "--use_ReLU", action="store_false", default=True, help="Whether to use ReLU"
+    )
     parser.add_argument(
         "--use_popart",
         action="store_true",
@@ -290,7 +300,9 @@ def get_config():
         default=True,
         help="Whether to use Orthogonal initialization for weights and 0 initialization for biases",
     )
-    parser.add_argument("--gain", type=float, default=0.01, help="The gain # of last action layer")
+    parser.add_argument(
+        "--gain", type=float, default=0.01, help="The gain # of last action layer"
+    )
 
     # recurrent parameters
     parser.add_argument(
@@ -305,7 +317,9 @@ def get_config():
         default=False,
         help="use a recurrent policy",
     )
-    parser.add_argument("--recurrent_N", type=int, default=1, help="The number of recurrent layers.")
+    parser.add_argument(
+        "--recurrent_N", type=int, default=1, help="The number of recurrent layers."
+    )
     parser.add_argument(
         "--data_chunk_length",
         type=int,
@@ -314,7 +328,9 @@ def get_config():
     )
 
     # optimizer parameters
-    parser.add_argument("--lr", type=float, default=5e-4, help="learning rate (default: 5e-4)")
+    parser.add_argument(
+        "--lr", type=float, default=5e-4, help="learning rate (default: 5e-4)"
+    )
     parser.add_argument(
         "--critic_lr",
         type=float,
@@ -330,7 +346,9 @@ def get_config():
     parser.add_argument("--weight_decay", type=float, default=0)
 
     # ppo parameters
-    parser.add_argument("--ppo_epoch", type=int, default=15, help="number of ppo epochs (default: 15)")
+    parser.add_argument(
+        "--ppo_epoch", type=int, default=15, help="number of ppo epochs (default: 15)"
+    )
     parser.add_argument(
         "--use_clipped_value_loss",
         action="store_false",
@@ -415,7 +433,9 @@ def get_config():
         default=True,
         help="by default True, whether to mask useless data in policy loss.",
     )
-    parser.add_argument("--huber_delta", type=float, default=10.0, help=" coefficience of huber loss.")
+    parser.add_argument(
+        "--huber_delta", type=float, default=10.0, help=" coefficience of huber loss."
+    )
 
     # run parameters
     parser.add_argument(
@@ -493,7 +513,7 @@ def get_config():
         default=None,
         help="by default None. set the path to pretrained model.",
     )
-    
+
     # attention_net parameters
     parser.add_argument(
         "--input_dim",
@@ -507,12 +527,27 @@ def get_config():
         default=128,
         help="embedding dimension of attention net",
     )
-    
+
     parser.add_argument(
         "--agent_num",
         type=int,
         default=3,
         help="number of agents",
+    )
+    
+    # Graph parameters
+    parser.add_argument(
+        "--k_size",
+        type=int,
+        default=10,
+        help="k size of knn graph",
+    )
+    
+    parser.add_argument(
+        "--sample_size",
+        type=int,
+        default=200,
+        help="sample size of knn graph",
     )
 
     return parser
