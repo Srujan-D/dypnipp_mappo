@@ -108,7 +108,7 @@ class CriticAttentionNet(nn.Module):
         LSTM_c = LSTM_c.permute(1, 0, 2)
         
         current_node_feature, (LSTM_h, LSTM_c) = self.LSTM(
-            current_node_feature, (LSTM_h, LSTM_c)
+            current_node_feature, (LSTM_h.contiguous(), LSTM_c.contiguous())
         )
         
         LSTM_h = LSTM_h.permute(1, 0, 2)

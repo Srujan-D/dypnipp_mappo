@@ -230,7 +230,7 @@ class FireEnvCore(object):
             remain_length = dist
             next_length = sample_length - self.dist_residual[i]
             reward = 0
-            done = next_node_index == 0
+            done = True if next_node_index == 0 else False
             no_sample = True
 
             while remain_length > next_length:
@@ -283,13 +283,15 @@ class FireEnvCore(object):
             self.node_feature[i] = self.gp_wrapper.update_node_feature(actual_t, agent_id=i)
             self.RMSE[i] = self.gp_wrapper.eval_avg_RMSE(self.ground_truth, actual_t, agent_id=i)
             cov_trace = self.gp_wrapper.eval_avg_cov_trace(actual_t, agent_id=i)[0]
-            unc, unc_list = self.gp_wrapper.eval_avg_unc(actual_t, return_all=True, agent_id=i)
-            JS, JS_list = self.gp_wrapper.eval_avg_JS(
-                self.ground_truth, actual_t, return_all=True, agent_id=i
-            )
-            KL, KL_list = self.gp_wrapper.eval_avg_KL(
-                self.ground_truth, actual_t, return_all=True, agent_id=i
-            )
+            
+            # TODO: store the following metrics later
+            # unc, unc_list = self.gp_wrapper.eval_avg_unc(actual_t, return_all=True, agent_id=i)
+            # JS, JS_list = self.gp_wrapper.eval_avg_JS(
+            #     self.ground_truth, actual_t, return_all=True, agent_id=i
+            # )
+            # KL, KL_list = self.gp_wrapper.eval_avg_KL(
+            #     self.ground_truth, actual_t, return_all=True, agent_id=i
+            # )
 
             
             # Reward logic
@@ -321,6 +323,7 @@ class FireEnvCore(object):
             sub_agent_info.append({"actual_budget": actual_budget})  # Store scalar in info
 
             # Return the updated structure
+            # breakpoint()
         return [sub_agent_obs, sub_agent_reward, sub_agent_done, sub_agent_info]
 
 
