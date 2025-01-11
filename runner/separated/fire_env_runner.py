@@ -70,7 +70,7 @@ class EnvRunner(Runner):
                     rnn_states_critic,
                     actions_env,
                 ) = self.collect(step)
-
+                # breakpoint()
                 # Step the environment
                 obs, rewards, dones, infos = self.envs.step(actions_env)
 
@@ -176,6 +176,59 @@ class EnvRunner(Runner):
         self.buffer[agent_id].current_index[step, thread_id] = np.zeros((1,), dtype=np.int32)
 
 
+    # def insert(self, data):
+    #     """
+    #     Inserts the data for the current step into the buffer.
+    #     """
+    #     (
+    #         obs,
+    #         rewards,
+    #         dones,
+    #         infos,
+    #         values,
+    #         actions,
+    #         action_log_probs,
+    #         rnn_states_actor,
+    #         rnn_states_critic,
+    #     ) = data
+    #     print(">>> Inserting data")
+    #     try:
+    #         print("rnn_states_actor", rnn_states_actor.shape)
+    #         print("rnn_states_critic", rnn_states_critic.shape)
+    #     except:
+    #         breakpoint()
+    #     # Reset RNN states for done episodes
+    #     for thread_id in range(self.n_rollout_threads):
+    #         if any(dones[thread_id]):
+    #             rnn_states_actor[thread_id] = np.zeros(
+    #                 (self.recurrent_N, self.embedding_dim), dtype=np.float32
+    #             )
+    #             rnn_states_critic[thread_id] = np.zeros(
+    #                 (self.recurrent_N, self.embedding_dim), dtype=np.float32
+    #             )
+
+    #     masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
+    #     masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
+
+    #     for thread_id in range(self.n_rollout_threads):
+    #         for agent_id in range(self.num_agents):
+    #             self.buffer[agent_id].insert(
+    #                 obs[thread_id][agent_id],
+    #                 list(chain(*obs[thread_id])),
+    #                 self.buffer[agent_id].node_inputs[self.buffer[agent_id].step, thread_id],
+    #                 self.buffer[agent_id].edge_inputs[self.buffer[agent_id].step, thread_id],
+    #                 self.buffer[agent_id].budget_inputs[self.buffer[agent_id].step, thread_id],
+    #                 self.buffer[agent_id].current_index[self.buffer[agent_id].step, thread_id],
+    #                 self.buffer[agent_id].pos_encoding[self.buffer[agent_id].step, thread_id],
+    #                 rnn_states_actor[thread_id][agent_id],
+    #                 rnn_states_critic[thread_id][agent_id],
+    #                 actions[thread_id][agent_id],
+    #                 action_log_probs[thread_id][agent_id],
+    #                 values[thread_id][agent_id],
+    #                 rewards[thread_id][agent_id],
+    #                 masks[thread_id][agent_id],
+    #             )
+    
     def insert(self, data):
         """
         Inserts the data for the current step into the buffer.
@@ -191,39 +244,53 @@ class EnvRunner(Runner):
             rnn_states_actor,
             rnn_states_critic,
         ) = data
-
+        # print(">>> Inserting data")
+        
+        # Reshape/reset RNN states for done episodes
+        # breakpoint()
         # Reset RNN states for done episodes
+        # # Reshape if needed since shape should be [agent_id, thread_id, 2, 1, embedding_dim] 
+        # if not isinstance(rnn_states_actor, np.ndarray):
+        #     rnn_states_actor = np.array(rnn_states_actor)
+        #     rnn_states_critic = np.array(rnn_states_critic)
+        
+        for thread_id in range(self.n_rollout_threads):
+            if any(dones[thread_id]):
+                for agent_id in range(self.num_agents):
+                    rnn_states_actor[agent_id][thread_id] = np.zeros(
+                    (2, 1, self.embedding_dim), dtype=np.float32
+                    )
+                    rnn_states_critic[agent_id][thread_id] = np.zeros(
+                    (2, 1, self.embedding_dim), dtype=np.float32
+                    )
+
+        # Prepare masks
+        masks = np.ones((self.n_rollout_threads, self.all_args.sample_size + 2, self.all_args.k_size), dtype=np.float32)
         for thread_id in range(self.n_rollout_threads):
             for agent_id in range(self.num_agents):
                 if dones[thread_id][agent_id]:
-                    rnn_states_actor[thread_id][agent_id] = np.zeros(
-                        (self.recurrent_N, self.embedding_dim), dtype=np.float32
-                    )
-                    rnn_states_critic[thread_id][agent_id] = np.zeros(
-                        (self.recurrent_N, self.embedding_dim), dtype=np.float32
-                    )
+                    masks[thread_id, :, :] = 0.0
 
-        masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
-        masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
-
+        # Insert data for each agent
         for thread_id in range(self.n_rollout_threads):
             for agent_id in range(self.num_agents):
                 self.buffer[agent_id].insert(
-                    obs[thread_id][agent_id],
-                    list(chain(*obs[thread_id])),
-                    self.buffer[agent_id].node_inputs[self.buffer[agent_id].step, thread_id],
-                    self.buffer[agent_id].edge_inputs[self.buffer[agent_id].step, thread_id],
-                    self.buffer[agent_id].budget_inputs[self.buffer[agent_id].step, thread_id],
-                    self.buffer[agent_id].current_index[self.buffer[agent_id].step, thread_id],
-                    self.buffer[agent_id].pos_encoding[self.buffer[agent_id].step, thread_id],
-                    rnn_states_actor[thread_id][agent_id],
-                    rnn_states_critic[thread_id][agent_id],
-                    actions[thread_id][agent_id],
-                    action_log_probs[thread_id][agent_id],
-                    values[thread_id][agent_id],
-                    rewards[thread_id][agent_id],
-                    masks[thread_id][agent_id],
+                    obs=obs[thread_id][agent_id],
+                    share_obs=np.concatenate(obs[thread_id]),
+                    node_inputs=self.buffer[agent_id].node_inputs[self.buffer[agent_id].step, thread_id],
+                    edge_inputs=self.buffer[agent_id].edge_inputs[self.buffer[agent_id].step, thread_id],
+                    budget_inputs=self.buffer[agent_id].budget_inputs[self.buffer[agent_id].step, thread_id],
+                    current_index=self.buffer[agent_id].current_index[self.buffer[agent_id].step, thread_id],
+                    pos_encoding=self.buffer[agent_id].pos_encoding[self.buffer[agent_id].step, thread_id],
+                    rnn_states_actor=rnn_states_actor[agent_id][thread_id],
+                    rnn_states_critic=rnn_states_critic[agent_id][thread_id],
+                    actions=actions[thread_id][agent_id],
+                    action_log_probs=action_log_probs[thread_id][agent_id],
+                    value_preds=values[thread_id][agent_id],
+                    rewards=rewards[thread_id][agent_id],
+                    masks=masks[thread_id],
                 )
+
 
     @torch.no_grad()
     def collect(self, step):
@@ -261,11 +328,16 @@ class EnvRunner(Runner):
                 torch.tensor(global_masks).to(self.device),
                 # self.buffer[agent_id].next_belief[step],
             )
+
+            # breakpoint()
+            
+            
             values.append(_t2n(value))
             actions.append(_t2n(action))
             action_log_probs.append(_t2n(action_log_prob))
             rnn_states_actor.append(_t2n(rnn_actor_state))
             rnn_states_critic.append(_t2n(rnn_critic_state))
+            
 
             # Format actions for the environment
             action_env = self.format_action(action, agent_id)
@@ -286,8 +358,8 @@ class EnvRunner(Runner):
             np.array(values).transpose(1, 0, 2),
             actions.transpose(1, 0, 2),
             np.array(action_log_probs).transpose(1, 0, 2),
-            np.array(rnn_states_actor).transpose(2, 0, 1, 3, 4),
-            np.array(rnn_states_critic).transpose(2, 0, 1, 3, 4),
+            np.array(rnn_states_actor).transpose(0, 2, 1, 3, 4),
+            np.array(rnn_states_critic).transpose(0, 2, 1, 3, 4),
             actions_env,
         )
         
