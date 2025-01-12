@@ -86,6 +86,7 @@ class R_Actor(nn.Module):
         # Compute log-probabilities and entropy
         action_distribution = torch.distributions.Categorical(logits=logp_list)
 
+        # breakpoint()
         # Get log probabilities for the given actions
         action_log_probs = action_distribution.log_prob(action)
 

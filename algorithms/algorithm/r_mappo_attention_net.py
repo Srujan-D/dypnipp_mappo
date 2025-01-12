@@ -103,12 +103,19 @@ class RMAPPO_AttentionNet:
             budget_inputs_batch,
             current_index_batch,
             pos_encoding_batch,
+            global_node_inputs_batch,
+            global_edge_inputs_batch,
+            global_budget_inputs_batch,
+            global_current_index_batch,
+            global_pos_encoding_batch,
             rnn_states_actor_batch,
             rnn_states_critic_batch,
             actions_batch,
             value_preds_batch,
             return_batch,
             masks_batch,
+            global_masks,
+            ppo_masks_batch,
             active_masks_batch,
             old_action_log_probs_batch,
             adv_targ,
@@ -116,20 +123,60 @@ class RMAPPO_AttentionNet:
         ) = sample
 
         # Forward pass through the policy
+        # Convert inputs to torch tensors with correct device
+        node_inputs = check(node_inputs_batch).to(**self.tpdv)
+        edge_inputs = check(edge_inputs_batch).to(**self.tpdv)
+        budget_inputs = check(budget_inputs_batch).to(**self.tpdv)
+        current_index = check(current_index_batch).to(**self.tpdv)
+        actions = check(actions_batch).to(**self.tpdv)
+        rnn_states_actor = check(rnn_states_actor_batch).to(**self.tpdv)
+        rnn_states_critic = check(rnn_states_critic_batch).to(**self.tpdv)
+        pos_encoding = check(pos_encoding_batch).to(**self.tpdv)
+        masks = check(masks_batch).to(**self.tpdv)
+        global_masks = check(global_masks).to(**self.tpdv)
+        
+        global_node_inputs_batch = check(global_node_inputs_batch).to(**self.tpdv)
+        global_edge_inputs_batch = check(global_edge_inputs_batch).to(**self.tpdv)
+        global_budget_inputs_batch = check(global_budget_inputs_batch).to(**self.tpdv)
+        global_current_index_batch = check(global_current_index_batch).to(**self.tpdv)
+        global_pos_encoding_batch = check(global_pos_encoding_batch).to(**self.tpdv)
+                
+        # (a, b, c, d) --> (a, b * c, d)
+        batch_size = global_node_inputs_batch.shape[0]
+        global_node_inputs_batch = global_node_inputs_batch.reshape(batch_size, -1, global_node_inputs_batch.shape[-1])
+        global_edge_inputs_batch = global_edge_inputs_batch.reshape(batch_size, -1, global_edge_inputs_batch.shape[-1])
+        global_budget_inputs_batch = global_budget_inputs_batch.reshape(batch_size, -1, global_budget_inputs_batch.shape[-1])
+        global_current_index_batch = global_current_index_batch.reshape(batch_size, -1, global_current_index_batch.shape[-1])
+        global_pos_encoding_batch = global_pos_encoding_batch.reshape(batch_size, -1, global_pos_encoding_batch.shape[-1])
+        
+
         values, action_log_probs, dist_entropy = self.policy.evaluate_actions(
-            node_inputs_batch,
-            edge_inputs_batch,
-            budget_inputs_batch,
-            current_index_batch,
-            actions_batch,
-            rnn_states_actor_batch,
-            rnn_states_critic_batch,
-            pos_encoding_batch,
-            masks_batch,
+            node_inputs,
+            edge_inputs, 
+            budget_inputs,
+            current_index,
+            actions,
+            rnn_states_actor.transpose(0, 1),
+            rnn_states_critic.transpose(0, 1),
+            pos_encoding,
+            global_node_inputs_batch,
+            global_edge_inputs_batch,
+            global_budget_inputs_batch,
+            global_pos_encoding_batch,
+            mask=masks,
+            global_current_index=global_current_index_batch,
+            global_mask=global_masks,
+            
         )
+        
+        old_action_log_probs_batch = check(old_action_log_probs_batch).to(**self.tpdv)
+        adv_targ = check(adv_targ).to(**self.tpdv)
+        value_preds_batch = check(value_preds_batch).to(**self.tpdv)
+        return_batch = check(return_batch).to(**self.tpdv)
+        active_masks_batch = check(active_masks_batch).to(**self.tpdv)
 
         # Compute importance weights
-        imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
+        imp_weights = torch.exp(action_log_probs.detach() - old_action_log_probs_batch)
 
         # Clipped surrogate loss
         surr1 = imp_weights * adv_targ
@@ -202,7 +249,7 @@ class RMAPPO_AttentionNet:
 
         for _ in range(self.ppo_epoch):
             data_generator = buffer.recurrent_generator(
-                buffer.returns[:-1] - buffer.value_preds[:-1], self.num_mini_batch
+                buffer.returns[:-1] - buffer.value_preds[:-1], self.num_mini_batch, self.data_chunk_length
             )
             for sample in data_generator:
                 (

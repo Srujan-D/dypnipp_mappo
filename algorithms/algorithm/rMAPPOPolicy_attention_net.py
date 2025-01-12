@@ -91,10 +91,10 @@ class RMAPPOPolicy_AttentionNet:
 
         # Select actions based on logp_list
         if deterministic:
-            actions = torch.argmax(logp_list, dim=-1)
+            actions = torch.argmax(logp_list, dim=1).long()
         else:
-            action_distribution = torch.distributions.Categorical(logits=logp_list)
-            actions = action_distribution.sample()
+            actions = torch.multinomial(logp_list.exp(), 1).long().squeeze(1)
+            log_prob = logp_list.gather(1, actions.unsqueeze(1))
 
         # Critic forward pass (combined inputs)
         value, rnn_states_critic = self.critic(
@@ -108,8 +108,7 @@ class RMAPPOPolicy_AttentionNet:
             global_mask,
         )
         
-
-        return value, actions, logp_list, rnn_states_actor, rnn_states_critic
+        return value, actions, log_prob, rnn_states_actor, rnn_states_critic
 
     def get_values(
         self,
@@ -148,9 +147,16 @@ class RMAPPOPolicy_AttentionNet:
         rnn_states_actor,
         rnn_states_critic,
         pos_encoding,
-        mask=None,
+        global_node_inputs,
+        global_edge_inputs,
+        global_budget_inputs,
+        global_pos_encoding,
+        global_current_index=None,
         global_mask=None,
+        mask=None,
+        ppo_mask=None,
         next_belief=None,
+        
     ):
         """
         Get action log probabilities, entropy, and value function predictions for actor update.
@@ -169,19 +175,22 @@ class RMAPPOPolicy_AttentionNet:
         )
 
         # Action log probabilities and entropy
+        # breakpoint()
         action_distribution = torch.distributions.Categorical(logits=logp_list)
         action_log_probs = action_distribution.log_prob(action)
         dist_entropy = action_distribution.entropy().mean()
 
+        # breakpoint()
         # Critic evaluation (combined inputs)
-        global_node_inputs, global_edge_inputs, global_budget_inputs, global_pos_encoding, global_mask = self._combine_inputs(
-            node_inputs, edge_inputs, budget_inputs, pos_encoding, mask
-        )
+        # global_node_inputs, global_edge_inputs, global_budget_inputs, global_pos_encoding, global_mask = self._combine_inputs(
+        #     node_inputs, edge_inputs, budget_inputs, pos_encoding, mask
+        # )
+        
         value, _ = self.critic(
             global_node_inputs,
             global_edge_inputs,
             global_budget_inputs,
-            current_index,  # Concatenated for all agents
+            global_current_index,  # Concatenated for all agents
             rnn_states_critic[0],
             rnn_states_critic[1],
             global_pos_encoding,
@@ -239,3 +248,67 @@ class RMAPPOPolicy_AttentionNet:
         global_masks = torch.cat(mask, dim=1) if mask is not None else None
 
         return global_node_inputs, global_edge_inputs, global_budget_inputs, global_pos_encoding, global_masks
+
+    # def _combine_inputs(self, buffer, step):
+    #     """
+    #     Combine inputs for the critic.
+    #     """
+    #     try:        
+    #         # Combine node inputs across agents
+    #         global_node_inputs = np.concatenate([
+    #             buffer[agent_id].node_inputs[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)  # Shape: (n_rollout_threads, sample_size + 2 * num_agents, node_features)
+
+    #         # Combine edge inputs across agents
+    #         global_edge_inputs = np.concatenate([
+    #             buffer[agent_id].edge_inputs[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)  # Shape: (n_rollout_threads, sample_size + 2 * num_agents, k_size)
+
+    #         # Combine budget inputs across agents
+    #         global_budget_inputs = np.concatenate([
+    #             buffer[agent_id].budget_inputs[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)  # Shape: (n_rollout_threads, sample_size + 2 * num_agents, 1)
+
+    #         # Combine position encodings across agents
+    #         global_pos_encodings = np.concatenate([
+    #             buffer[agent_id].pos_encoding[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)  # Shape: (n_rollout_threads, sample_size + 2 * num_agents, pos_encoding_dim)
+            
+    #         global_current_index = np.concatenate([
+    #             buffer[agent_id].current_index[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)
+            
+    #         global_masks = np.concatenate([
+    #             buffer[agent_id].masks[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)
+    #     except:
+    #         breakpoint()
+    #         # Combine node inputs across agents
+    #         global_node_inputs = np.concatenate([
+    #             buffer[agent_id].node_inputs[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)  # Shape: (n_rollout_threads, sample_size + 2 * num_agents, node_features)
+
+    #         # Combine edge inputs across agents
+    #         global_edge_inputs = np.concatenate([
+    #             buffer[agent_id].edge_inputs[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)  # Shape: (n_rollout_threads, sample_size + 2 * num_agents, k_size)
+
+    #         # Combine budget inputs across agents
+    #         global_budget_inputs = np.concatenate([
+    #             buffer[agent_id].budget_inputs[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)  # Shape: (n_rollout_threads, sample_size + 2 * num_agents, 1)
+
+    #         # Combine position encodings across agents
+    #         global_pos_encodings = np.concatenate([
+    #             buffer[agent_id].pos_encoding[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)  # Shape: (n_rollout_threads, sample_size + 2 * num_agents, pos_encoding_dim)
+            
+    #         global_current_index = np.concatenate([
+    #             buffer[agent_id].current_index[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)
+            
+    #         global_masks = np.concatenate([
+    #             buffer[agent_id].masks[step] for agent_id in range(self.num_agents)
+    #         ], axis=1)
+        
+    #     return global_node_inputs, global_edge_inputs, global_budget_inputs, global_pos_encodings, global_current_index, global_masks
