@@ -68,7 +68,7 @@ class EnvRunner(Runner):
 
             for step in range(self.episode_length):
                 # Collect actions and values
-                print(">>> step", step)
+                # print(">>> step", step)
                 (
                     values,
                     actions,
@@ -102,6 +102,7 @@ class EnvRunner(Runner):
                 )
                 self.insert(data)
 
+            print("Running episode", episode, " w rewards", rewards)
             # Compute returns and train the model
             self.compute()
             train_infos = self.train()

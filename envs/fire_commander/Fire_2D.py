@@ -1100,7 +1100,7 @@ if __name__ == "__main__":
             r_func="RF3",
         )
 
-        print(">>> Step is ", step)
+        # print(">>> Step is ", step)
         env.env_visualize()  # env visualizer, for debugging
 
     # Visualize the last state
